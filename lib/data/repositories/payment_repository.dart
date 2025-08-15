@@ -13,7 +13,7 @@ class PaymentRepository {
   }
 
   // Get payments by credit ID
-  Future<List<Payment>> getPaymentsByCreditId(int creditId) async {
+  Future<List<Payment>> getPaymentsByCreditId(String creditId) async {
     return _paymentsBox.values.where((payment) => payment.creditId == creditId).toList();
   }
 
@@ -97,7 +97,7 @@ class PaymentRepository {
   }
 
   // Get total paid amount for credit
-  Future<double> getTotalPaidForCredit(int creditId) async {
+  Future<double> getTotalPaidForCredit(String creditId) async {
     final payments = await getPaymentsByCreditId(creditId);
     return payments
         .where((payment) => payment.status == 'paid' || payment.status == 'partial')
@@ -105,7 +105,7 @@ class PaymentRepository {
   }
 
   // Get total pending amount for credit
-  Future<double> getTotalPendingForCredit(int creditId) async {
+  Future<double> getTotalPendingForCredit(String creditId) async {
     final payments = await getPaymentsByCreditId(creditId);
     return payments
         .where((payment) => payment.status == 'pending')
@@ -140,28 +140,18 @@ class PaymentRepository {
   }
 
   // Update credit balance after payment
-  Future<void> _updateCreditBalance(int creditId, double paymentAmount) async {
-    // Find credit by creditId (we need to search through all credits)
-    final credits = _creditsBox.values.where((credit) => 
-        credit.key == creditId.toString()).toList();
+  Future<void> _updateCreditBalance(String creditId, double paymentAmount) async {
+    // Find credit by creditId
+    final credit = await _creditsBox.get(creditId);
     
-    if (credits.isNotEmpty) {
-      final credit = credits.first;
+    if (credit != null) {
       final newBalance = credit.currentBalance - paymentAmount;
       final updatedCredit = credit.copyWith(
         currentBalance: newBalance > 0 ? newBalance : 0,
         status: newBalance <= 0 ? 'closed' : credit.status,
       );
       
-      // Find the credit key and update
-      final creditKey = _creditsBox.keys.firstWhere(
-        (key) => _creditsBox.get(key)?.key == creditId.toString(),
-        orElse: () => null,
-      );
-      
-      if (creditKey != null) {
-        await _creditsBox.put(creditKey, updatedCredit);
-      }
+      await _creditsBox.put(creditId, updatedCredit);
     }
   }
 

@@ -5,7 +5,7 @@ part 'credit.g.dart';
 @HiveType(typeId: 0)
 class Credit extends HiveObject {
   @HiveField(0)
-  int? orgId; // Reference to bank/MFO
+  String? orgId; // Reference to bank/MFO
 
   @HiveField(1)
   String name;
@@ -48,7 +48,7 @@ class Credit extends HiveObject {
   });
 
   Credit copyWith({
-    int? orgId,
+    String? orgId,
     String? name,
     String? type,
     double? initialAmount,

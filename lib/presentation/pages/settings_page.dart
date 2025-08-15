@@ -1,416 +1,382 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/settings_controller.dart';
-import '../../data/models/settings.dart';
-import '../../core/theme/colors.dart';
-import '../../core/theme/text_styles.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(SettingsController());
-    
+    final SettingsController controller = Get.find<SettingsController>();
+
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Настройки',
-          style: AppTextStyles.heading3.copyWith(
-            color: AppColors.textPrimary,
-          ),
-        ),
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Get.back(),
-        ),
+        title: const Text('Настройки'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
           return const Center(
-            child: CircularProgressIndicator(),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Загрузка настроек...'),
+              ],
+            ),
           );
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Theme settings
-              _buildSectionHeader('Внешний вид'),
-              _buildThemeSettings(controller),
-              const SizedBox(height: 24),
+        if (controller.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Ошибка загрузки настроек',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  controller.error,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => controller.loadSettings(),
+                  child: const Text('Повторить'),
+                ),
+              ],
+            ),
+          );
+        }
 
-              // Notification settings
-              _buildSectionHeader('Уведомления'),
-              _buildNotificationSettings(controller),
-              const SizedBox(height: 24),
-
-              // Security settings
-              _buildSectionHeader('Безопасность'),
-              _buildSecuritySettings(controller),
-              const SizedBox(height: 24),
-
-              // Backup settings
-              _buildSectionHeader('Резервное копирование'),
-              _buildBackupSettings(controller),
-              const SizedBox(height: 24),
-
-              // Reset settings
-              _buildSectionHeader('Сброс'),
-              _buildResetSettings(controller),
-            ],
+        return RefreshIndicator(
+          onRefresh: () => controller.loadSettings(),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Theme settings
+                _buildSettingsSection(
+                  context,
+                  'Внешний вид',
+                  Icons.palette,
+                  [
+                    _buildThemeModeTile(context, controller),
+                  ],
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Notification settings
+                _buildSettingsSection(
+                  context,
+                  'Уведомления',
+                  Icons.notifications,
+                  [
+                    _buildNotificationTile(context, controller),
+                  ],
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Security settings
+                _buildSettingsSection(
+                  context,
+                  'Безопасность',
+                  Icons.security,
+                  [
+                    _buildLockTile(context, controller),
+                  ],
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Financial settings
+                _buildSettingsSection(
+                  context,
+                  'Финансы',
+                  Icons.account_balance_wallet,
+                  [
+                    _buildIncomeTile(context, controller),
+                  ],
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Data management
+                _buildSettingsSection(
+                  context,
+                  'Данные',
+                  Icons.storage,
+                  [
+                    _buildBackupTile(context, controller),
+                    _buildResetTile(context, controller),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       }),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        title,
-        style: AppTextStyles.heading4.copyWith(
-          fontWeight: FontWeight.bold,
-          color: AppColors.primary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThemeSettings(SettingsController controller) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _buildSettingsSection(
+    BuildContext context,
+    String title,
+    IconData icon,
+    List<Widget> children,
+  ) {
+    return Card(
+      elevation: 2,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListTile(
-            title: Text(
-              'Тема приложения',
-              style: AppTextStyles.body1,
-            ),
-            subtitle: Text(
-              controller.getThemeModeName(controller.settings.value.themeMode),
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textSecondary,
+          // Section header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
             ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () => _showThemeDialog(controller),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationSettings(SettingsController controller) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            title: Text(
-              'Уведомления',
-              style: AppTextStyles.body1,
-            ),
-            subtitle: Text(
-              controller.areNotificationsEnabled.value 
-                  ? 'Включены' 
-                  : 'Отключены',
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            trailing: Switch(
-              value: controller.areNotificationsEnabled.value,
-              onChanged: (value) {
-                if (value) {
-                  controller.requestNotificationPermissions();
-                }
-              },
-            ),
-          ),
-          ListTile(
-            title: Text(
-              'Напоминать за',
-              style: AppTextStyles.body1,
-            ),
-            subtitle: Text(
-              '${controller.notifyAheadHours.value} часов',
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () => _showNotificationHoursDialog(controller),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSecuritySettings(SettingsController controller) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            title: Text(
-              'Блокировка приложения',
-              style: AppTextStyles.body1,
-            ),
-            subtitle: Text(
-              controller.getLockTypeName(controller.currentLockType.value),
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            trailing: Switch(
-              value: controller.isLockEnabled.value,
-              onChanged: controller.toggleLock,
-            ),
-          ),
-          if (controller.isLockEnabled.value) ...[
-            if (controller.isPinSet())
-              ListTile(
-                title: Text(
-                  'Изменить PIN-код',
-                  style: AppTextStyles.body1,
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => _showPinDialog(controller, isChange: true),
-              ),
-            if (!controller.isPinSet())
-              ListTile(
-                title: Text(
-                  'Установить PIN-код',
-                  style: AppTextStyles.body1,
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => _showPinDialog(controller),
-              ),
-            if (controller.isBiometricAvailable.value)
-              ListTile(
-                title: Text(
-                  'Биометрическая аутентификация',
-                  style: AppTextStyles.body1,
-                ),
-                subtitle: Text(
-                  controller.isBiometricEnabled() 
-                      ? 'Включена' 
-                      : 'Отключена',
-                  style: AppTextStyles.body2.copyWith(
-                    color: AppColors.textSecondary,
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                trailing: Switch(
-                  value: controller.isBiometricEnabled(),
-                  onChanged: (value) {
-                    if (value) {
-                      controller.enableBiometric();
-                    } else {
-                      controller.disableBiometric();
-                    }
-                  },
-                ),
-              ),
-          ],
+              ],
+            ),
+          ),
+          
+          // Section content
+          ...children,
         ],
       ),
     );
   }
 
-  Widget _buildBackupSettings(SettingsController controller) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            title: Text(
-              'Экспорт данных',
-              style: AppTextStyles.body1,
-            ),
-            subtitle: Text(
-              'Сохранить все данные в файл',
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            leading: const Icon(Icons.upload, color: AppColors.primary),
-            onTap: controller.exportData,
-          ),
-          ListTile(
-            title: Text(
-              'Импорт данных',
-              style: AppTextStyles.body1,
-            ),
-            subtitle: Text(
-              'Загрузить данные из файла',
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            leading: const Icon(Icons.download, color: AppColors.primary),
-            onTap: controller.importData,
-          ),
-        ],
+  Widget _buildThemeModeTile(BuildContext context, SettingsController controller) {
+    return ListTile(
+      title: const Text('Тема приложения'),
+      subtitle: Text(controller.getThemeModeDisplayName(controller.themeMode.value)),
+      leading: const Icon(Icons.brightness_6),
+      trailing: const Icon(Icons.arrow_forward_ios),
+      onTap: () => _showThemeDialog(context, controller),
+    );
+  }
+
+  Widget _buildNotificationTile(BuildContext context, SettingsController controller) {
+    return ListTile(
+      title: const Text('Уведомления о платежах'),
+      subtitle: Text(controller.getNotificationHoursDisplayText(controller.notifyAheadHours.value)),
+      leading: const Icon(Icons.schedule),
+      trailing: const Icon(Icons.arrow_forward_ios),
+      onTap: () => _showNotificationDialog(context, controller),
+    );
+  }
+
+  Widget _buildLockTile(BuildContext context, SettingsController controller) {
+    return ListTile(
+      title: const Text('Блокировка приложения'),
+      subtitle: Text(controller.getLockTypeDisplayName(controller.lockType.value)),
+      leading: const Icon(Icons.lock),
+      trailing: Switch(
+        value: controller.lockEnabled.value,
+        onChanged: (value) => _showLockDialog(context, controller, value),
       ),
     );
   }
 
-  Widget _buildResetSettings(SettingsController controller) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.error),
-      ),
-      child: ListTile(
-        title: Text(
-          'Сбросить все настройки',
-          style: AppTextStyles.body1.copyWith(
-            color: AppColors.error,
-          ),
-        ),
-        subtitle: Text(
-          'Удалить все данные и настройки',
-          style: AppTextStyles.body2.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        leading: const Icon(Icons.delete_forever, color: AppColors.error),
-        onTap: () => _showResetConfirmationDialog(controller),
-      ),
+  Widget _buildIncomeTile(BuildContext context, SettingsController controller) {
+    return ListTile(
+      title: const Text('Ежемесячный доход'),
+      subtitle: Text(controller.monthlyIncomeFormatted),
+      leading: const Icon(Icons.monetization_on),
+      trailing: const Icon(Icons.arrow_forward_ios),
+      onTap: () => _showIncomeDialog(context, controller),
     );
   }
 
-  void _showThemeDialog(SettingsController controller) {
-    Get.dialog(
-      AlertDialog(
+  Widget _buildBackupTile(BuildContext context, SettingsController controller) {
+    return ListTile(
+      title: const Text('Резервное копирование'),
+      subtitle: const Text('Экспорт и импорт данных'),
+      leading: const Icon(Icons.backup),
+      trailing: const Icon(Icons.arrow_forward_ios),
+      onTap: () => _showBackupDialog(context, controller),
+    );
+  }
+
+  Widget _buildResetTile(BuildContext context, SettingsController controller) {
+    return ListTile(
+      title: const Text('Сброс настроек'),
+      subtitle: const Text('Вернуть настройки по умолчанию'),
+      leading: const Icon(Icons.restore),
+      trailing: const Icon(Icons.arrow_forward_ios),
+      onTap: () => _showResetDialog(context, controller),
+    );
+  }
+
+  void _showThemeDialog(BuildContext context, SettingsController controller) {
+    final themes = ['system', 'light', 'dark'];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
         title: const Text('Выберите тему'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: AppThemeMode.values.map((mode) {
-            return ListTile(
-              title: Text(controller.getThemeModeName(mode)),
-              trailing: controller.settings.value.themeMode == mode
-                  ? const Icon(Icons.check, color: AppColors.primary)
-                  : null,
-              onTap: () {
-                controller.updateThemeMode(mode);
-                Get.back();
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  void _showNotificationHoursDialog(SettingsController controller) {
-    final hoursController = TextEditingController();
-    hoursController.text = controller.notifyAheadHours.value.toString();
-
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Напоминать за'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: hoursController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Часов',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Отмена'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final hours = int.tryParse(hoursController.text);
-              if (hours != null && hours > 0) {
-                controller.updateNotifyAheadHours(hours);
-                Get.back();
+          children: themes.map((theme) => RadioListTile<String>(
+            title: Text(controller.getThemeModeDisplayName(theme)),
+            value: theme,
+            groupValue: controller.themeMode.value,
+            onChanged: (value) async {
+              Navigator.of(context).pop();
+              final success = await controller.updateThemeMode(value!);
+              if (success) {
+                Get.snackbar(
+                  'Успешно',
+                  'Тема изменена',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
               }
             },
-            child: const Text('Сохранить'),
-          ),
-        ],
+          )).toList(),
+        ),
       ),
     );
   }
 
-  void _showPinDialog(SettingsController controller, {bool isChange = false}) {
-    final pinController = TextEditingController();
-    final confirmPinController = TextEditingController();
+  void _showNotificationDialog(BuildContext context, SettingsController controller) {
+    final hours = [0, 1, 3, 6, 12, 24, 48, 72];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Уведомления о платежах'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: hours.map((hour) => RadioListTile<int>(
+            title: Text(controller.getNotificationHoursDisplayText(hour)),
+            value: hour,
+            groupValue: controller.notifyAheadHours.value,
+            onChanged: (value) async {
+              Navigator.of(context).pop();
+              final success = await controller.updateNotificationSettings(value!);
+              if (success) {
+                Get.snackbar(
+                  'Успешно',
+                  'Настройки уведомлений обновлены',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              }
+            },
+          )).toList(),
+        ),
+      ),
+    );
+  }
 
-    Get.dialog(
-      AlertDialog(
-        title: Text(isChange ? 'Изменить PIN-код' : 'Установить PIN-код'),
+  void _showLockDialog(BuildContext context, SettingsController controller, bool enabled) {
+    if (!enabled) {
+      controller.updateLockSettings(false, 'none');
+      return;
+    }
+
+    final lockTypes = ['pin', 'biometric'];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Тип блокировки'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: lockTypes.map((type) => RadioListTile<String>(
+            title: Text(controller.getLockTypeDisplayName(type)),
+            value: type,
+            groupValue: controller.lockType.value,
+            onChanged: (value) async {
+              Navigator.of(context).pop();
+              final success = await controller.updateLockSettings(true, value!);
+              if (success) {
+                Get.snackbar(
+                  'Успешно',
+                  'Блокировка включена',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              }
+            },
+          )).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showIncomeDialog(BuildContext context, SettingsController controller) {
+    final incomeController = TextEditingController(
+      text: controller.monthlyIncome?.value?.toString() ?? '',
+    );
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ежемесячный доход'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: pinController,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'PIN-код (4-6 цифр)',
-                border: OutlineInputBorder(),
-              ),
-            ),
+            const Text('Укажите ваш ежемесячный доход для расчета DSR'),
             const SizedBox(height: 16),
             TextField(
-              controller: confirmPinController,
+              controller: incomeController,
               keyboardType: TextInputType.number,
-              obscureText: true,
               decoration: const InputDecoration(
-                labelText: 'Подтвердите PIN-код',
-                border: OutlineInputBorder(),
+                labelText: 'Доход',
+                suffixText: '₽',
+                hintText: '50000',
               ),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () {
-              final pin = pinController.text;
-              final confirmPin = confirmPinController.text;
+            onPressed: () async {
+              final income = double.tryParse(incomeController.text);
+              Navigator.of(context).pop();
               
-              if (pin.length >= 4 && pin == confirmPin) {
-                controller.setPin(pin);
-                Get.back();
+              final success = await controller.updateMonthlyIncome(income);
+              if (success) {
+                Get.snackbar(
+                  'Успешно',
+                  'Доход обновлен',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
               }
             },
             child: const Text('Сохранить'),
@@ -420,25 +386,54 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _showResetConfirmationDialog(SettingsController controller) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Сбросить настройки'),
-        content: const Text(
-          'Вы уверены, что хотите сбросить все настройки? Это действие нельзя отменить.',
+  void _showBackupDialog(BuildContext context, SettingsController controller) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Резервное копирование'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Экспорт и импорт данных будет добавлен в следующей версии'),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResetDialog(BuildContext context, SettingsController controller) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Сброс настроек'),
+        content: const Text('Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () {
-              controller.resetSettings();
-              Get.back();
+            onPressed: () async {
+              Navigator.of(context).pop();
+              
+              final success = await controller.resetToDefault();
+              if (success) {
+                Get.snackbar(
+                  'Успешно',
+                  'Настройки сброшены',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Сбросить'),
           ),

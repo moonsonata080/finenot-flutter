@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../core/theme/colors.dart';
-import '../../core/theme/text_styles.dart';
+import '../../core/services/hive_provider.dart';
+import '../controllers/dashboard_controller.dart';
+import '../controllers/credits_controller.dart';
+import '../controllers/payments_controller.dart';
+import '../controllers/settings_controller.dart';
+import '../controllers/org_picker_controller.dart';
+import 'main_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -11,9 +16,10 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late AnimationController _logoController;
+  late AnimationController _textController;
+  late Animation<double> _logoAnimation;
+  late Animation<double> _textAnimation;
 
   @override
   void initState() {
@@ -23,125 +29,188 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   }
 
   void _initializeAnimations() {
-    _animationController = AnimationController(
-      duration: const Duration(seconds: 2),
+    _logoController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
+    _textController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _logoAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+      parent: _logoController,
+      curve: Curves.elasticOut,
     ));
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
+    _textAnimation = Tween<double>(
+      begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.2, 0.7, curve: Curves.elasticOut),
+      parent: _textController,
+      curve: Curves.easeInOut,
     ));
 
-    _animationController.forward();
+    _logoController.forward();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _textController.forward();
+    });
   }
 
   Future<void> _initializeApp() async {
     try {
-      // Wait for animations to complete
-      await Future.delayed(const Duration(seconds: 2));
+      // Initialize Hive
+      await HiveProvider.initialize();
 
-      // Navigate directly to home (skip authentication for now)
-      Get.offAllNamed('/home');
+      // Initialize all controllers
+      Get.put(DashboardController());
+      Get.put(CreditsController());
+      Get.put(PaymentsController());
+      Get.put(SettingsController());
+      Get.put(OrgPickerController());
+
+      // Wait for animations and show splash
+      await Future.delayed(const Duration(seconds: 3));
+
+      // Navigate to main page
+      Get.off(() => const MainPage());
     } catch (e) {
-      print('Error during app initialization: $e');
-      // Navigate to home even if there's an error
-      Get.offAllNamed('/home');
+      _showErrorDialog(e.toString());
     }
+  }
+
+  void _showErrorDialog(String error) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Ошибка инициализации'),
+        content: Text('Не удалось запустить приложение: $error'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _initializeApp();
+            },
+            child: const Text('Повторить'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _logoController.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _animationController,
-          builder: (context, child) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // App logo
-                    Container(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.primary,
+              Theme.of(context).colorScheme.secondary,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo animation
+              AnimatedBuilder(
+                animation: _logoAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _logoAnimation.value,
+                    child: Container(
                       width: 120,
                       height: 120,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(60),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
+                            color: Colors.black.withOpacity(0.2),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.account_balance_wallet,
                         size: 60,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
-                    const SizedBox(height: 32),
-
-                    // App title
-                    Text(
-                      'FinEnot',
-                      style: AppTextStyles.heading1.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 40),
+              
+              // App name animation
+              AnimatedBuilder(
+                animation: _textAnimation,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _textAnimation.value,
+                    child: Transform.translate(
+                      offset: Offset(0, 20 * (1 - _textAnimation.value)),
+                      child: Column(
+                        children: [
+                          Text(
+                            'FinEnot',
+                            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 36,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Управление кредитами',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.white.withOpacity(0.9),
+                              fontWeight: FontWeight.w300,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-
-                    // App subtitle
-                    Text(
-                      'Менеджер кредитов',
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-
-                    // Loading indicator
-                    const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Loading text
-                    Text(
-                      'Загрузка...',
-                      style: AppTextStyles.body2.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 60),
+              
+              // Loading indicator
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                strokeWidth: 3,
+              ),
+              
+              const SizedBox(height: 20),
+              
+              Text(
+                'Инициализация...',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.white.withOpacity(0.8),
                 ),
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );

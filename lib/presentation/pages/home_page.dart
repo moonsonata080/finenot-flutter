@@ -1,452 +1,504 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../controllers/dashboard_controller.dart';
-import '../controllers/credits_controller.dart';
-import '../controllers/payments_controller.dart';
-import '../../core/theme/colors.dart';
-import '../../core/theme/text_styles.dart';
-import '../../data/models/payment.dart';
-import '../../data/models/credit.dart';
+import '../controllers/settings_controller.dart';
+import '../widgets/kpi_tile.dart';
+import '../widgets/credit_card.dart';
+import 'credits_page.dart';
+import 'payments_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Инициализируем контроллеры
-    final dashboardController = Get.put(DashboardController());
-    final creditsController = Get.put(CreditsController());
-    final paymentsController = Get.put(PaymentsController());
+    final DashboardController dashboardController = Get.find<DashboardController>();
+    final SettingsController settingsController = Get.find<SettingsController>();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FinEnot', style: TextStyle(color: AppColors.primary)),
+        title: const Text('FinEnot'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () => Get.toNamed('/profile'),
-          ),
-          IconButton(
-            onPressed: () => Get.toNamed('/settings'),
-            icon: const Icon(Icons.settings, color: AppColors.textPrimary),
-          ),
-          IconButton(
-            onPressed: () => _addTestData(),
-            icon: const Icon(Icons.add, color: AppColors.textPrimary),
+            icon: const Icon(Icons.settings),
+            onPressed: () => Get.to(() => const SettingsPage()),
           ),
         ],
       ),
       body: Obx(() {
-        if (dashboardController.loading.value) {
+        if (dashboardController.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (dashboardController.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'Ошибка загрузки данных',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  dashboardController.error,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => dashboardController.loadDashboardData(),
+                  child: const Text('Повторить'),
+                ),
+              ],
+            ),
+          );
+        }
+
         return RefreshIndicator(
-          onRefresh: () async {
-            await dashboardController.loadDashboardData();
-            await creditsController.loadCredits();
-            await paymentsController.loadPayments();
-          },
+          onRefresh: () => dashboardController.loadDashboardData(),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Приветствие с енотом
-                _buildWelcomeSection(),
+                // Welcome section
+                _buildWelcomeSection(context, settingsController),
+                
                 const SizedBox(height: 24),
                 
-                // Финансовый статус
-                _buildFinancialStatusCard(dashboardController),
-                const SizedBox(height: 16),
+                // KPI Cards
+                _buildKPISection(context, dashboardController),
                 
-                // Основные показатели
-                _buildKeyMetricsRow(dashboardController),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 
-                // Прогресс погашения долга
-                _buildDebtProgressCard(dashboardController),
-                const SizedBox(height: 16),
+                // DSR Section
+                _buildDSRSection(context, dashboardController),
                 
-                // Ближайшие платежи
-                _buildUpcomingPaymentsCard(paymentsController),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 
-                // Активные кредиты
-                _buildActiveCreditsCard(creditsController),
+                // Recent Credits
+                _buildRecentCreditsSection(context, dashboardController),
+                
+                const SizedBox(height: 24),
+                
+                // Upcoming Payments
+                _buildUpcomingPaymentsSection(context, dashboardController),
               ],
             ),
           ),
         );
       }),
-      bottomNavigationBar: _buildBottomNavigationBar(),
-    );
-  }
-
-  Widget _buildWelcomeSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-                      children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet,
-                  size: 30,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Привет! 👋',
-                    style: AppTextStyles.heading2,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Как дела с финансами?',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFinancialStatusCard(DashboardController controller) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.trending_up,
-                  color: controller.financialStatusColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Финансовый статус',
-                  style: AppTextStyles.heading2,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: controller.financialStatusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    controller.financialStatusText,
-                    style: TextStyle(
-                      color: controller.financialStatusColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKeyMetricsRow(DashboardController controller) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildMetricCard(
-            'Общий долг',
-            controller.formatCurrency(controller.totalDebt.value),
-            Icons.account_balance,
-            AppColors.error,
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: 0,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              // Already on home
+              break;
+            case 1:
+              Get.to(() => const CreditsPage());
+              break;
+            case 2:
+              Get.to(() => const PaymentsPage());
+              break;
+            case 3:
+              Get.to(() => const SettingsPage());
+              break;
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Главная',
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildMetricCard(
-            'Ежемесячные платежи',
-            controller.formatCurrency(controller.totalMonthlyPayment.value),
-            Icons.account_balance_wallet,
-            AppColors.success,
+          BottomNavigationBarItem(
+            icon: Icon(Icons.credit_card),
+            label: 'Кредиты',
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textPrimary.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: AppTextStyles.heading2.copyWith(color: color),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDebtProgressCard(DashboardController controller) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Прогресс погашения',
-              style: AppTextStyles.heading2,
-            ),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: controller.debtProgress.value,
-              backgroundColor: AppColors.background,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.success),
-              minHeight: 8,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${(controller.debtProgress.value * 100).toStringAsFixed(1)}% погашено',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textPrimary.withOpacity(0.7),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUpcomingPaymentsCard(PaymentsController controller) {
-    final upcoming = controller.upcomingPayments.value.take(3).toList();
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Ближайшие платежи',
-                  style: AppTextStyles.heading2,
-                ),
-                TextButton(
-                  onPressed: () => Get.toNamed('/payments'),
-                  child: const Text('Все'),
-                ),
-              ],
-            ),
-            if (upcoming.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Нет предстоящих платежей'),
-              )
-            else
-              ...upcoming.map((payment) => _buildPaymentItem(payment)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentItem(Payment payment) {
-    final dueDate = payment.dueDate;
-    final amount = payment.amount;
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: AppColors.warning,
-              shape: BoxShape.circle,
-            ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.payment),
+            label: 'Платежи',
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${amount.toStringAsFixed(0)} ₽',
-                  style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  '${dueDate.day}.${dueDate.month}.${dueDate.year}',
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Настройки',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActiveCreditsCard(CreditsController controller) {
-    final activeCredits = controller.activeCredits.take(2).toList();
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Активные кредиты',
-                  style: AppTextStyles.heading2,
-                ),
-                TextButton(
-                  onPressed: () => Get.toNamed('/credits'),
-                  child: const Text('Все'),
-                ),
-              ],
-            ),
-            if (activeCredits.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Нет активных кредитов'),
-              )
-            else
-              ...activeCredits.map((credit) => _buildCreditItem(credit)),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Get.toNamed('/add-credit'),
-                icon: const Icon(Icons.add),
-                label: const Text('Добавить кредит'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildWelcomeSection(BuildContext context, SettingsController settingsController) {
+    return Obx(() {
+      final settings = settingsController.currentSettings;
+      final timeOfDay = DateTime.now().hour;
+      
+      String greeting;
+      if (timeOfDay < 12) {
+        greeting = 'Доброе утро';
+      } else if (timeOfDay < 18) {
+        greeting = 'Добрый день';
+      } else {
+        greeting = 'Добрый вечер';
+      }
 
-  Widget _buildCreditItem(Credit credit) {
-    final progress = credit.currentBalance / credit.initialAmount;
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  credit.name,
-                  style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+              Text(
+                greeting,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 8),
               Text(
-                '${credit.currentBalance.toStringAsFixed(0)} ₽',
-                style: AppTextStyles.body,
+                'Управляйте своими кредитами эффективно',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: AppColors.background,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-            minHeight: 4,
+        ),
+      );
+    });
+  }
+
+  Widget _buildKPISection(BuildContext context, DashboardController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Обзор',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        const SizedBox(height: 16),
+        
+        // KPI Grid
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.2,
+          children: [
+            KpiTile(
+              title: 'Общий долг',
+              value: '${controller.totalDebt.value.toStringAsFixed(0)} ₽',
+              icon: Icons.account_balance_wallet,
+              color: Colors.red,
+              onTap: () => Get.to(() => const CreditsPage()),
+            ),
+            KpiTile(
+              title: 'Ежемесячный платеж',
+              value: '${controller.totalMonthlyPayments.value.toStringAsFixed(0)} ₽',
+              icon: Icons.payment,
+              color: Colors.orange,
+              onTap: () => Get.to(() => const PaymentsPage()),
+            ),
+            KpiTile(
+              title: 'Активных кредитов',
+              value: controller.activeCreditsCount.value.toString(),
+              icon: Icons.credit_card,
+              color: Colors.blue,
+              onTap: () => Get.to(() => const CreditsPage()),
+            ),
+            KpiTile(
+              title: 'Просроченных',
+              value: controller.overdueCreditsCount.value.toString(),
+              icon: Icons.warning,
+              color: Colors.red,
+              onTap: () => Get.to(() => const PaymentsPage()),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDSRSection(BuildContext context, DashboardController controller) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.analytics, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  'DSR (Debt Service Ratio)',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // DSR Progress
+            Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${controller.dsr.value.toStringAsFixed(1)}%',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: _getDSRColor(controller.dsr.value),
+                      ),
+                    ),
+                    Text(
+                      _getDSRStatus(controller.dsr.value),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _getDSRColor(controller.dsr.value),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: controller.dsr.value / 100,
+                  backgroundColor: Colors.grey[300],
+                  valueColor: AlwaysStoppedAnimation<Color>(_getDSRColor(controller.dsr.value)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Ежемесячные платежи / Доход',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.primary,
-      unselectedItemColor: AppColors.textPrimary.withOpacity(0.6),
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Главная',
+  Widget _buildRecentCreditsSection(BuildContext context, DashboardController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Недавние кредиты',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Get.to(() => const CreditsPage()),
+              child: const Text('Все'),
+            ),
+          ],
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.credit_card),
-          label: 'Кредиты',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.payment),
-          label: 'Платежи',
-        ),
+        const SizedBox(height: 16),
+        
+        if (controller.credits.isEmpty)
+          _buildEmptyState(
+            context,
+            'Нет кредитов',
+            'Добавьте свой первый кредит',
+            Icons.credit_card,
+            () => Get.to(() => const CreditsPage()),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: controller.credits.take(3).length,
+            itemBuilder: (context, index) {
+              final credit = controller.credits[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: CreditCard(credit: credit),
+              );
+            },
+          ),
       ],
-      onTap: (index) {
-        switch (index) {
-          case 1:
-            Get.toNamed('/credits');
-            break;
-          case 2:
-            Get.toNamed('/payments');
-            break;
-        }
-      },
     );
   }
 
-  void _addTestData() {
-    final creditsController = Get.find<CreditsController>();
-    creditsController.addTestData();
+  Widget _buildUpcomingPaymentsSection(BuildContext context, DashboardController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Ближайшие платежи',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Get.to(() => const PaymentsPage()),
+              child: const Text('Все'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        if (controller.upcomingPayments.isEmpty)
+          _buildEmptyState(
+            context,
+            'Нет платежей',
+            'Все платежи оплачены',
+            Icons.check_circle,
+            () => Get.to(() => const PaymentsPage()),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: controller.upcomingPayments.take(3).length,
+            itemBuilder: (context, index) {
+              final payment = controller.upcomingPayments[index];
+              return Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: _getPaymentStatusColor(payment.status),
+                    child: Icon(
+                      _getPaymentStatusIcon(payment.status),
+                      color: Colors.white,
+                    ),
+                  ),
+                  title: Text('${payment.amount.toStringAsFixed(0)} ₽'),
+                  subtitle: Text(
+                    '${payment.dueDate.day}.${payment.dueDate.month}.${payment.dueDate.year}',
+                  ),
+                  trailing: Text(
+                    _getPaymentStatusText(payment.status),
+                    style: TextStyle(
+                      color: _getPaymentStatusColor(payment.status),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(
+    BuildContext context,
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                size: 48,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getDSRColor(double dsr) {
+    if (dsr < 30) return Colors.green;
+    if (dsr < 50) return Colors.orange;
+    return Colors.red;
+  }
+
+  String _getDSRStatus(double dsr) {
+    if (dsr < 30) return 'Отлично';
+    if (dsr < 50) return 'Внимание';
+    return 'Критично';
+  }
+
+  Color _getPaymentStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'paid':
+        return Colors.green;
+      case 'partial':
+        return Colors.blue;
+      case 'missed':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getPaymentStatusIcon(String status) {
+    switch (status) {
+      case 'pending':
+        return Icons.schedule;
+      case 'paid':
+        return Icons.check;
+      case 'partial':
+        return Icons.pending;
+      case 'missed':
+        return Icons.warning;
+      default:
+        return Icons.help;
+    }
+  }
+
+  String _getPaymentStatusText(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Ожидает';
+      case 'paid':
+        return 'Оплачен';
+      case 'partial':
+        return 'Частично';
+      case 'missed':
+        return 'Пропущен';
+      default:
+        return status;
+    }
   }
 }

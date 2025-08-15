@@ -401,4 +401,52 @@ class CreditsController extends GetxController {
 
   // Check if any operation is in progress
   bool get isOperationInProgress => isCreating.value || isUpdating.value || isDeleting.value;
+
+  // Get credits by status
+  List<Credit> getCreditsByStatus(String status) {
+    return credits.where((credit) => credit.status == status).toList();
+  }
+
+  // Get type filter display name
+  String getTypeFilterDisplayName() {
+    switch (selectedType.value) {
+      case 'all':
+        return 'Все типы';
+      case 'consumer':
+        return 'Потребительский';
+      case 'mortgage':
+        return 'Ипотека';
+      case 'micro':
+        return 'Микрозайм';
+      case 'card':
+        return 'Кредитная карта';
+      default:
+        return selectedType.value;
+    }
+  }
+
+  // Get status filter display name
+  String getStatusFilterDisplayName() {
+    switch (selectedStatus.value) {
+      case 'all':
+        return 'Все статусы';
+      case 'active':
+        return 'Активные';
+      case 'closed':
+        return 'Закрытые';
+      case 'overdue':
+        return 'Просроченные';
+      default:
+        return selectedStatus.value;
+    }
+  }
+
+  // Get org filter display name
+  String getOrgFilterDisplayName() {
+    if (selectedOrg.value == 'all') {
+      return 'Все организации';
+    }
+    final org = organizations.firstWhereOrNull((org) => org.key == selectedOrg.value);
+    return org?.displayName ?? 'Неизвестная организация';
+  }
 }

@@ -1,27 +1,24 @@
 import 'package:get/get.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/models/settings.dart';
-import '../../core/services/auth_lock_service.dart';
-import '../../core/services/backup_service.dart';
-import '../../core/services/notification_service.dart';
 
 class SettingsController extends GetxController {
-  final SettingsRepository _settingsRepository = SettingsRepository();
+  final SettingsRepository _settingsRepo = SettingsRepository();
 
   // Observable variables
-  final Rx<Settings> settings = Settings().obs;
-  final RxBool isLoading = false.obs;
-  final RxString error = ''.obs;
+  final Rx<Settings?> settings = Rx<Settings?>(null);
+  
+  final RxBool isLoading = true.obs;
+  final RxString errorMessage = ''.obs;
+  final RxBool isUpdating = false.obs;
+  final RxBool isResetting = false.obs;
 
-  // Authentication settings
-  final RxBool isLockEnabled = false.obs;
-  final Rx<AppLockType> currentLockType = AppLockType.none.obs;
-  final RxBool isBiometricAvailable = false.obs;
-  final RxList<String> availableBiometrics = <String>[].obs;
-
-  // Notification settings
-  final RxBool areNotificationsEnabled = false.obs;
+  // Settings observables
+  final RxString themeMode = 'system'.obs;
   final RxInt notifyAheadHours = 24.obs;
+  final RxBool lockEnabled = false.obs;
+  final RxString lockType = 'none'.obs;
+  final RxDouble? monthlyIncome = RxDouble(0.0);
 
   @override
   void onInit() {
@@ -29,297 +26,350 @@ class SettingsController extends GetxController {
     loadSettings();
   }
 
+  // Load settings
   Future<void> loadSettings() async {
     try {
       isLoading.value = true;
-      error.value = '';
+      errorMessage.value = '';
 
-      // Load settings
-      final currentSettings = await _settingsRepository.getSettings();
+      final currentSettings = await _settingsRepo.getSettings();
       settings.value = currentSettings;
-
-      // Load authentication settings
-      await _loadAuthenticationSettings();
-
-      // Load notification settings
-      await _loadNotificationSettings();
+      
+      // Update observables
+      _updateObservables(currentSettings);
+      
     } catch (e) {
-      error.value = 'Ошибка загрузки настроек: $e';
-      print('Error loading settings: $e');
+      errorMessage.value = 'Ошибка загрузки настроек: $e';
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> _loadAuthenticationSettings() async {
-    isLockEnabled.value = await AuthLockService.isLockEnabled();
-    currentLockType.value = await AuthLockService.getCurrentLockType();
-    isBiometricAvailable.value = await AuthLockService.hasAnyBiometric();
-    availableBiometrics.value = await AuthLockService.getAvailableBiometricNames();
+  // Update observables from settings
+  void _updateObservables(Settings currentSettings) {
+    themeMode.value = currentSettings.themeMode;
+    notifyAheadHours.value = currentSettings.notifyAheadHours;
+    lockEnabled.value = currentSettings.lockEnabled;
+    lockType.value = currentSettings.lockType;
+    monthlyIncome?.value = currentSettings.monthlyIncome ?? 0.0;
   }
 
-  Future<void> _loadNotificationSettings() async {
-    areNotificationsEnabled.value = await NotificationService.areNotificationsEnabled();
-    notifyAheadHours.value = settings.value.notifyAheadHours;
-  }
-
-  // Theme settings
-  Future<void> updateThemeMode(AppThemeMode themeMode) async {
+  // Update theme mode
+  Future<bool> updateThemeMode(String newThemeMode) async {
     try {
-      await _settingsRepository.updateThemeMode(themeMode);
-      settings.value.themeMode = themeMode;
-      
-      Get.snackbar(
-        'Успешно',
-        'Тема изменена',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = 'Ошибка изменения темы: $e';
-      print('Error updating theme: $e');
-    }
-  }
+      isUpdating.value = true;
+      errorMessage.value = '';
 
-  // Lock settings
-  Future<void> toggleLock(bool enabled) async {
-    try {
-      await _settingsRepository.updateLockEnabled(enabled);
-      isLockEnabled.value = enabled;
-      
-      if (!enabled) {
-        currentLockType.value = AppLockType.none;
-      }
-      
-      Get.snackbar(
-        'Успешно',
-        enabled ? 'Блокировка включена' : 'Блокировка отключена',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = 'Ошибка изменения блокировки: $e';
-      print('Error toggling lock: $e');
-    }
-  }
-
-  Future<void> setPin(String pin) async {
-    try {
-      if (!AuthLockService.isValidPin(pin)) {
-        error.value = 'PIN должен содержать 4-6 цифр';
-        return;
+      if (settings.value == null) {
+        errorMessage.value = 'Настройки не загружены';
+        return false;
       }
 
-      await AuthLockService.setPin(pin);
-      currentLockType.value = AppLockType.pin;
+      final updatedSettings = settings.value!.copyWith(themeMode: newThemeMode);
+      await _settingsRepo.updateSettings(updatedSettings);
       
-      Get.snackbar(
-        'Успешно',
-        'PIN установлен',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      settings.value = updatedSettings;
+      themeMode.value = newThemeMode;
+      
+      return true;
     } catch (e) {
-      error.value = 'Ошибка установки PIN: $e';
-      print('Error setting PIN: $e');
+      errorMessage.value = 'Ошибка обновления темы: $e';
+      return false;
+    } finally {
+      isUpdating.value = false;
     }
   }
 
-  Future<void> removePin() async {
+  // Update notification settings
+  Future<bool> updateNotificationSettings(int hours) async {
     try {
-      await AuthLockService.removePin();
-      currentLockType.value = AppLockType.none;
-      
-      Get.snackbar(
-        'Успешно',
-        'PIN удален',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = 'Ошибка удаления PIN: $e';
-      print('Error removing PIN: $e');
-    }
-  }
+      isUpdating.value = true;
+      errorMessage.value = '';
 
-  Future<void> enableBiometric() async {
-    try {
-      final success = await AuthLockService.enableBiometric();
-      if (success) {
-        currentLockType.value = AppLockType.biometric;
-        Get.snackbar(
-          'Успешно',
-          'Биометрия включена',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      } else {
-        error.value = 'Не удалось включить биометрию';
+      if (settings.value == null) {
+        errorMessage.value = 'Настройки не загружены';
+        return false;
       }
-    } catch (e) {
-      error.value = 'Ошибка включения биометрии: $e';
-      print('Error enabling biometric: $e');
-    }
-  }
 
-  Future<void> disableBiometric() async {
-    try {
-      await AuthLockService.disableBiometric();
-      currentLockType.value = AppLockType.none;
+      final updatedSettings = settings.value!.copyWith(notifyAheadHours: hours);
+      await _settingsRepo.updateSettings(updatedSettings);
       
-      Get.snackbar(
-        'Успешно',
-        'Биометрия отключена',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = 'Ошибка отключения биометрии: $e';
-      print('Error disabling biometric: $e');
-    }
-  }
-
-  // Notification settings
-  Future<void> updateNotifyAheadHours(int hours) async {
-    try {
-      await _settingsRepository.updateNotifyAheadHours(hours);
+      settings.value = updatedSettings;
       notifyAheadHours.value = hours;
-      settings.value.notifyAheadHours = hours;
       
-      // Reschedule notifications
-      await NotificationService.onNotificationSettingsChanged();
-      
-      Get.snackbar(
-        'Успешно',
-        'Настройки уведомлений обновлены',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      return true;
     } catch (e) {
-      error.value = 'Ошибка обновления уведомлений: $e';
-      print('Error updating notifications: $e');
+      errorMessage.value = 'Ошибка обновления уведомлений: $e';
+      return false;
+    } finally {
+      isUpdating.value = false;
     }
   }
 
-  Future<void> requestNotificationPermissions() async {
+  // Update lock settings
+  Future<bool> updateLockSettings(bool enabled, String type) async {
     try {
-      final granted = await NotificationService.requestPermissions();
-      areNotificationsEnabled.value = granted;
-      
-      if (granted) {
-        Get.snackbar(
-          'Успешно',
-          'Разрешения на уведомления получены',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      } else {
-        error.value = 'Разрешения на уведомления не получены';
+      isUpdating.value = true;
+      errorMessage.value = '';
+
+      if (settings.value == null) {
+        errorMessage.value = 'Настройки не загружены';
+        return false;
       }
-    } catch (e) {
-      error.value = 'Ошибка запроса разрешений: $e';
-      print('Error requesting permissions: $e');
-    }
-  }
 
-  // Backup settings
-  Future<void> exportData() async {
-    try {
-      isLoading.value = true;
-      error.value = '';
-
-      await BackupService.exportToFile();
-      
-      Get.snackbar(
-        'Успешно',
-        'Данные экспортированы',
-        snackPosition: SnackPosition.BOTTOM,
+      final updatedSettings = settings.value!.copyWith(
+        lockEnabled: enabled,
+        lockType: type,
       );
+      await _settingsRepo.updateSettings(updatedSettings);
+      
+      settings.value = updatedSettings;
+      lockEnabled.value = enabled;
+      lockType.value = type;
+      
+      return true;
     } catch (e) {
-      error.value = 'Ошибка экспорта: $e';
-      print('Error exporting data: $e');
+      errorMessage.value = 'Ошибка обновления блокировки: $e';
+      return false;
     } finally {
-      isLoading.value = false;
+      isUpdating.value = false;
     }
   }
 
-  Future<void> importData() async {
+  // Update monthly income
+  Future<bool> updateMonthlyIncome(double? income) async {
     try {
-      isLoading.value = true;
-      error.value = '';
+      isUpdating.value = true;
+      errorMessage.value = '';
 
-      await BackupService.importFromFile();
+      if (settings.value == null) {
+        errorMessage.value = 'Настройки не загружены';
+        return false;
+      }
+
+      final updatedSettings = settings.value!.copyWith(monthlyIncome: income);
+      await _settingsRepo.updateSettings(updatedSettings);
       
-      // Reschedule notifications after import
-      await NotificationService.onNotificationSettingsChanged();
+      settings.value = updatedSettings;
+      monthlyIncome?.value = income ?? 0.0;
       
-      Get.snackbar(
-        'Успешно',
-        'Данные импортированы',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      return true;
     } catch (e) {
-      error.value = 'Ошибка импорта: $e';
-      print('Error importing data: $e');
+      errorMessage.value = 'Ошибка обновления дохода: $e';
+      return false;
     } finally {
-      isLoading.value = false;
+      isUpdating.value = false;
     }
   }
 
-  // Reset settings
-  Future<void> resetSettings() async {
+  // Reset settings to default
+  Future<bool> resetToDefault() async {
     try {
-      isLoading.value = true;
-      error.value = '';
+      isResetting.value = true;
+      errorMessage.value = '';
 
-      await _settingsRepository.resetSettings();
-      await AuthLockService.resetAuthentication();
-      
-      // Reload settings
+      await _settingsRepo.resetToDefault();
       await loadSettings();
       
-      Get.snackbar(
-        'Успешно',
-        'Настройки сброшены',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      return true;
     } catch (e) {
-      error.value = 'Ошибка сброса настроек: $e';
-      print('Error resetting settings: $e');
+      errorMessage.value = 'Ошибка сброса настроек: $e';
+      return false;
     } finally {
-      isLoading.value = false;
+      isResetting.value = false;
     }
   }
 
-  // Helper methods
-  String getThemeModeName(AppThemeMode mode) {
-    switch (mode) {
-      case AppThemeMode.system:
-        return 'Системная';
-      case AppThemeMode.light:
-        return 'Светлая';
-      case AppThemeMode.dark:
-        return 'Темная';
-      default:
-        return 'Системная';
+  // Export settings
+  Future<Map<String, dynamic>?> exportSettings() async {
+    try {
+      return await _settingsRepo.exportSettings();
+    } catch (e) {
+      errorMessage.value = 'Ошибка экспорта настроек: $e';
+      return null;
     }
   }
 
-  String getLockTypeName(AppLockType type) {
-    switch (type) {
-      case AppLockType.none:
-        return 'Отключена';
-      case AppLockType.pin:
-        return 'PIN-код';
-      case AppLockType.biometric:
-        return 'Биометрия';
-      default:
-        return 'Отключена';
+  // Import settings
+  Future<bool> importSettings(Map<String, dynamic> data) async {
+    try {
+      isUpdating.value = true;
+      errorMessage.value = '';
+
+      await _settingsRepo.importSettings(data);
+      await loadSettings();
+      
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Ошибка импорта настроек: $e';
+      return false;
+    } finally {
+      isUpdating.value = false;
     }
   }
 
-  bool isPinSet() {
-    return currentLockType.value == AppLockType.pin;
+  // Get settings summary
+  Future<Map<String, dynamic>?> getSettingsSummary() async {
+    try {
+      return await _settingsRepo.getSettingsSummary();
+    } catch (e) {
+      errorMessage.value = 'Ошибка получения сводки настроек: $e';
+      return null;
+    }
   }
 
-  bool isBiometricEnabled() {
-    return currentLockType.value == AppLockType.biometric;
+  // Validate settings
+  Future<bool> validateSettings(Settings settingsToValidate) async {
+    try {
+      return await _settingsRepo.validateSettings(settingsToValidate);
+    } catch (e) {
+      errorMessage.value = 'Ошибка валидации настроек: $e';
+      return false;
+    }
+  }
+
+  // Check if settings need migration
+  Future<bool> needsMigration() async {
+    try {
+      return await _settingsRepo.needsMigration();
+    } catch (e) {
+      errorMessage.value = 'Ошибка проверки миграции: $e';
+      return false;
+    }
+  }
+
+  // Migrate settings
+  Future<bool> migrateSettings() async {
+    try {
+      isUpdating.value = true;
+      errorMessage.value = '';
+
+      await _settingsRepo.migrateSettings();
+      await loadSettings();
+      
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Ошибка миграции настроек: $e';
+      return false;
+    } finally {
+      isUpdating.value = false;
+    }
   }
 
   // Refresh settings
   Future<void> refresh() async {
     await loadSettings();
   }
+
+  // Get theme mode display name
+  String getThemeModeDisplayName(String mode) {
+    switch (mode) {
+      case 'system':
+        return 'Системная';
+      case 'light':
+        return 'Светлая';
+      case 'dark':
+        return 'Тёмная';
+      default:
+        return mode;
+    }
+  }
+
+  // Get lock type display name
+  String getLockTypeDisplayName(String type) {
+    switch (type) {
+      case 'none':
+        return 'Отключена';
+      case 'pin':
+        return 'PIN-код';
+      case 'biometric':
+        return 'Биометрия';
+      default:
+        return type;
+    }
+  }
+
+  // Get notification hours display text
+  String getNotificationHoursDisplayText(int hours) {
+    if (hours == 0) return 'Отключены';
+    if (hours == 1) return 'За 1 час';
+    if (hours < 24) return 'За $hours часов';
+    if (hours == 24) return 'За 1 день';
+    final days = hours ~/ 24;
+    return 'За $days дней';
+  }
+
+  // Check if notifications are enabled
+  bool get notificationsEnabled => notifyAheadHours.value > 0;
+
+  // Check if lock is enabled
+  bool get isLockEnabled => lockEnabled.value && lockType.value != 'none';
+
+  // Check if PIN lock is enabled
+  bool get isPinLockEnabled => lockEnabled.value && lockType.value == 'pin';
+
+  // Check if biometric lock is enabled
+  bool get isBiometricLockEnabled => lockEnabled.value && lockType.value == 'biometric';
+
+  // Check if monthly income is set
+  bool get hasMonthlyIncome => monthlyIncome?.value != null && monthlyIncome!.value > 0;
+
+  // Get monthly income formatted
+  String get monthlyIncomeFormatted {
+    if (monthlyIncome?.value == null || monthlyIncome!.value <= 0) {
+      return 'Не указан';
+    }
+    return '${monthlyIncome!.value.toStringAsFixed(0)} ₽';
+  }
+
+  // Get settings for display
+  Map<String, dynamic> getSettingsForDisplay() {
+    if (settings.value == null) return {};
+
+    return {
+      'themeMode': themeMode.value,
+      'themeModeDisplay': getThemeModeDisplayName(themeMode.value),
+      'notifyAheadHours': notifyAheadHours.value,
+      'notificationsEnabled': notificationsEnabled,
+      'notificationDisplay': getNotificationHoursDisplayText(notifyAheadHours.value),
+      'lockEnabled': lockEnabled.value,
+      'lockType': lockType.value,
+      'lockTypeDisplay': getLockTypeDisplayName(lockType.value),
+      'isLockEnabled': isLockEnabled,
+      'isPinLockEnabled': isPinLockEnabled,
+      'isBiometricLockEnabled': isBiometricLockEnabled,
+      'monthlyIncome': monthlyIncome?.value,
+      'hasMonthlyIncome': hasMonthlyIncome,
+      'monthlyIncomeFormatted': monthlyIncomeFormatted,
+    };
+  }
+
+  // Get settings validation status
+  Map<String, bool> getSettingsValidationStatus() {
+    if (settings.value == null) return {};
+
+    return {
+      'isValid': true, // Will be updated with actual validation
+      'hasThemeMode': themeMode.value.isNotEmpty,
+      'hasValidNotificationHours': notifyAheadHours.value >= 0 && notifyAheadHours.value <= 168,
+      'hasValidLockType': ['none', 'pin', 'biometric'].contains(lockType.value),
+      'hasValidMonthlyIncome': monthlyIncome?.value == null || monthlyIncome!.value >= 0,
+    };
+  }
+
+  // Check if data is loaded
+  bool get isDataLoaded => !isLoading.value && errorMessage.value.isEmpty && settings.value != null;
+
+  // Get error message
+  String get error => errorMessage.value;
+
+  // Check if there are any errors
+  bool get hasError => errorMessage.value.isNotEmpty;
+
+  // Check if any operation is in progress
+  bool get isOperationInProgress => isUpdating.value || isResetting.value;
+
+  // Get current settings
+  Settings? get currentSettings => settings.value;
 }
+

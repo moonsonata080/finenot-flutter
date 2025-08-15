@@ -1,106 +1,119 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../data/models/credit.dart';
-import '../../core/theme/colors.dart';
-import '../../core/theme/text_styles.dart';
 
 class CreditCard extends StatelessWidget {
   final Credit credit;
+  final VoidCallback? onTap;
 
-  const CreditCard({super.key, required this.credit});
+  const CreditCard({
+    super.key,
+    required this.credit,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final progress = credit.currentBalance / credit.initialAmount;
-    final remainingDebt = credit.initialAmount - credit.currentBalance;
-    final overpayment = credit.currentBalance - remainingDebt;
-
+    final remainingAmount = credit.initialAmount - credit.currentBalance;
+    
     return Card(
+      elevation: 2,
       child: InkWell(
-        onTap: () => _showCreditDetails(context),
-        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Заголовок и статус
+              // Header
               Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      credit.name,
-                      style: AppTextStyles.heading2,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  _buildStatusChip(),
-                ],
-              ),
-              const SizedBox(height: 8),
-              
-              // Банк и тип кредита
-              Row(
-                children: [
-                  Icon(
-                    Icons.account_balance,
-                    size: 16,
-                    color: AppColors.textPrimary.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    credit.bankName?.isNotEmpty == true ? credit.bankName! : 'Не указан',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.7),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+                  // Credit type icon
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: _getCreditTypeColor().withOpacity(0.1),
+                      color: _getCreditTypeColor(credit.type).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getCreditTypeIcon(credit.type),
+                      color: _getCreditTypeColor(credit.type),
+                      size: 20,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Credit info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          credit.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _getCreditTypeDisplayName(credit.type),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Status badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(credit.status).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _getCreditTypeText(),
-                      style: TextStyle(
-                        color: _getCreditTypeColor(),
-                        fontSize: 12,
+                      _getStatusDisplayName(credit.status),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _getStatusColor(credit.status),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ],
               ),
+              
               const SizedBox(height: 16),
               
-              // Основные показатели
+              // Amounts
               Row(
                 children: [
                   Expanded(
-                    child: _buildMetric(
-                      'Остаток долга',
+                    child: _buildAmountInfo(
+                      context,
+                      'Остаток',
                       '${credit.currentBalance.toStringAsFixed(0)} ₽',
-                      Icons.account_balance_wallet,
-                      AppColors.error,
+                      Colors.red,
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: _buildMetric(
+                    child: _buildAmountInfo(
+                      context,
                       'Ежемесячный платеж',
                       '${credit.monthlyPayment.toStringAsFixed(0)} ₽',
-                      Icons.payment,
-                      AppColors.warning,
+                      Colors.blue,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
               
-              // Прогресс погашения
+              const SizedBox(height: 16),
+              
+              // Progress bar
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -109,15 +122,14 @@ class CreditCard extends StatelessWidget {
                     children: [
                       Text(
                         'Прогресс погашения',
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.textPrimary.withOpacity(0.7),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                       Text(
                         '${(progress * 100).toStringAsFixed(1)}%',
-                        style: AppTextStyles.body.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -125,56 +137,41 @@ class CreditCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   LinearProgressIndicator(
                     value: progress,
-                    backgroundColor: AppColors.background,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    backgroundColor: Colors.grey[300],
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _getCreditTypeColor(credit.type),
+                    ),
                     minHeight: 6,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Погашено: ${remainingDebt.toStringAsFixed(0)} ₽',
-                        style: AppTextStyles.body.copyWith(
-                          fontSize: 12,
-                          color: AppColors.success,
-                        ),
-                      ),
-                      Text(
-                        'Переплата: ${overpayment.toStringAsFixed(0)} ₽',
-                        style: AppTextStyles.body.copyWith(
-                          fontSize: 12,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Погашено: ${remainingAmount.toStringAsFixed(0)} ₽',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
                   ),
                 ],
               ),
+              
               const SizedBox(height: 12),
               
-              // Следующий платеж
+              // Additional info
               Row(
                 children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: AppColors.textPrimary.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Следующий платеж: ',
-                    style: AppTextStyles.body.copyWith(
-                      fontSize: 14,
-                      color: AppColors.textPrimary.withOpacity(0.7),
+                  Expanded(
+                    child: _buildInfoItem(
+                      context,
+                      'Ставка',
+                      '${credit.interestRate.toStringAsFixed(1)}%',
+                      Icons.percent,
                     ),
                   ),
-                  Text(
-                    DateFormat('dd.MM.yyyy').format(credit.nextPaymentDate),
-                    style: AppTextStyles.body.copyWith(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _isPaymentOverdue() ? AppColors.error : AppColors.primary,
+                  Expanded(
+                    child: _buildInfoItem(
+                      context,
+                      'Следующий платеж',
+                      '${credit.nextPaymentDate.day}.${credit.nextPaymentDate.month}',
+                      Icons.calendar_today,
                     ),
                   ),
                 ],
@@ -186,79 +183,26 @@ class CreditCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip() {
-    Color color;
-    String text;
-    IconData icon;
-
-    switch (credit.status) {
-      case CreditStatus.active:
-        color = AppColors.success;
-        text = 'Активен';
-        icon = Icons.check_circle;
-        break;
-      case CreditStatus.overdue:
-        color = AppColors.error;
-        text = 'Просрочен';
-        icon = Icons.warning;
-        break;
-      case CreditStatus.paid:
-        color = AppColors.textPrimary.withOpacity(0.5);
-        text = 'Погашен';
-        icon = Icons.cancel;
-        break;
-      default:
-        color = AppColors.warning;
-        text = 'Неизвестно';
-        icon = Icons.help;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetric(String title, String value, IconData icon, Color color) {
+  Widget _buildAmountInfo(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 4),
-            Text(
-              title,
-              style: AppTextStyles.body.copyWith(
-                fontSize: 12,
-                color: AppColors.textPrimary.withOpacity(0.7),
-              ),
-            ),
-          ],
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: AppTextStyles.body.copyWith(
-            fontWeight: FontWeight.w600,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
             color: color,
           ),
         ),
@@ -266,152 +210,111 @@ class CreditCard extends StatelessWidget {
     );
   }
 
-  Color _getCreditTypeColor() {
-    switch (credit.type) {
-      case CreditType.consumer:
-        return const Color(0xFF4CAF50);
-      case CreditType.mortgage:
-        return const Color(0xFF2196F3);
-      case CreditType.microloan:
-        return const Color(0xFFFF9800);
-      default:
-        return const Color(0xFF9E9E9E);
-    }
-  }
-
-  String _getCreditTypeText() {
-    switch (credit.type) {
-      case CreditType.consumer:
-        return 'Потребительский';
-      case CreditType.mortgage:
-        return 'Ипотека';
-      case CreditType.microloan:
-        return 'Микрозайм';
-      default:
-        return 'Неизвестно';
-    }
-  }
-
-  bool _isPaymentOverdue() {
-    return credit.nextPaymentDate.isBefore(DateTime.now());
-  }
-
-  void _showCreditDetails(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _buildCreditDetailsSheet(context),
-    );
-  }
-
-  Widget _buildCreditDetailsSheet(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildInfoItem(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                credit.name,
-                style: AppTextStyles.heading1,
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          
-          _buildDetailRow('Банк', credit.bankName?.isNotEmpty == true ? credit.bankName! : 'Не указан'),
-          _buildDetailRow('Тип кредита', _getCreditTypeText()),
-          _buildDetailRow('Начальная сумма', '${credit.initialAmount.toStringAsFixed(0)} ₽'),
-          _buildDetailRow('Текущий остаток', '${credit.currentBalance.toStringAsFixed(0)} ₽'),
-          _buildDetailRow('Ежемесячный платеж', '${credit.monthlyPayment.toStringAsFixed(0)} ₽'),
-          _buildDetailRow('Процентная ставка', '${credit.interestRate.toStringAsFixed(1)}%'),
-          _buildDetailRow('Следующий платеж', DateFormat('dd.MM.yyyy').format(credit.nextPaymentDate)),
-          _buildDetailRow('Статус', _getStatusText()),
-          
-          const SizedBox(height: 20),
-          
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // TODO: Редактирование кредита
-                  },
-                  icon: const Icon(Icons.edit),
-                  label: const Text('Редактировать'),
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // TODO: Просмотр платежей
-                  },
-                  icon: const Icon(Icons.payment),
-                  label: const Text('Платежи'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                  ),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textPrimary.withOpacity(0.7),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w500),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getStatusText() {
-    switch (credit.status) {
-      case CreditStatus.active:
-        return 'Активен';
-      case CreditStatus.paid:
-        return 'Погашен';
-      case CreditStatus.overdue:
-        return 'Просрочен';
-      case CreditStatus.defaulted:
-        return 'Дефолт';
+  Color _getCreditTypeColor(String type) {
+    switch (type) {
+      case 'consumer':
+        return Colors.blue;
+      case 'mortgage':
+        return Colors.green;
+      case 'micro':
+        return Colors.orange;
+      case 'card':
+        return Colors.purple;
       default:
-        return 'Неизвестно';
+        return Colors.grey;
+    }
+  }
+
+  IconData _getCreditTypeIcon(String type) {
+    switch (type) {
+      case 'consumer':
+        return Icons.person;
+      case 'mortgage':
+        return Icons.home;
+      case 'micro':
+        return Icons.account_balance;
+      case 'card':
+        return Icons.credit_card;
+      default:
+        return Icons.credit_card;
+    }
+  }
+
+  String _getCreditTypeDisplayName(String type) {
+    switch (type) {
+      case 'consumer':
+        return 'Потребительский';
+      case 'mortgage':
+        return 'Ипотека';
+      case 'micro':
+        return 'Микрокредит';
+      case 'card':
+        return 'Кредитная карта';
+      default:
+        return type;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'active':
+        return Colors.green;
+      case 'closed':
+        return Colors.grey;
+      case 'overdue':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getStatusDisplayName(String status) {
+    switch (status) {
+      case 'active':
+        return 'Активный';
+      case 'closed':
+        return 'Закрыт';
+      case 'overdue':
+        return 'Просрочен';
+      default:
+        return status;
     }
   }
 }

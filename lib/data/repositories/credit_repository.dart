@@ -41,7 +41,7 @@ class CreditRepository {
   // Delete credit
   Future<void> deleteCredit(String id) async {
     // Delete associated payments first
-    final payments = _paymentsBox.values.where((payment) => payment.creditId.toString() == id).toList();
+    final payments = _paymentsBox.values.where((payment) => payment.creditId == id).toList();
     for (final payment in payments) {
       await payment.delete();
     }
@@ -51,7 +51,7 @@ class CreditRepository {
   }
 
   // Get credits by organization
-  Future<List<Credit>> getCreditsByOrg(int orgId) async {
+  Future<List<Credit>> getCreditsByOrg(String orgId) async {
     return _creditsBox.values.where((credit) => credit.orgId == orgId).toList();
   }
 
@@ -85,7 +85,7 @@ class CreditRepository {
   // Create first payment for new credit
   Future<void> _createFirstPayment(String creditId, Credit credit) async {
     final payment = Payment(
-      creditId: int.parse(creditId),
+      creditId: creditId,
       amount: credit.monthlyPayment,
       dueDate: credit.nextPaymentDate,
       status: 'pending',
@@ -139,5 +139,31 @@ class CreditRepository {
     }
     
     return counts;
+  }
+
+  // Get credit with ID (helper method)
+  Map<String, dynamic> getCreditWithId(String id, Credit credit) {
+    return {
+      'id': id,
+      'credit': credit,
+    };
+  }
+
+  // Get all credits with their IDs
+  Future<List<Map<String, dynamic>>> getAllCreditsWithIds() async {
+    final credits = <Map<String, dynamic>>[];
+    final keys = _creditsBox.keys;
+    
+    for (final key in keys) {
+      final credit = _creditsBox.get(key);
+      if (credit != null) {
+        credits.add({
+          'id': key.toString(),
+          'credit': credit,
+        });
+      }
+    }
+    
+    return credits;
   }
 }

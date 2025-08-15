@@ -5,7 +5,7 @@ part 'payment.g.dart';
 @HiveType(typeId: 1)
 class Payment extends HiveObject {
   @HiveField(0)
-  int creditId; // Reference to credit
+  String creditId; // Reference to credit
 
   @HiveField(1)
   double amount;
@@ -32,7 +32,7 @@ class Payment extends HiveObject {
   });
 
   Payment copyWith({
-    int? creditId,
+    String? creditId,
     double? amount,
     DateTime? dueDate,
     DateTime? paidDate,
