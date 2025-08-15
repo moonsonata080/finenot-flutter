@@ -1,27 +1,18 @@
 import 'package:get/get.dart';
-import '../../data/repositories/payment_repository.dart';
-import '../../data/repositories/credit_repository.dart';
-import '../../data/models/payment.dart';
-import '../../data/models/credit.dart';
-import '../../core/services/notification_service.dart';
 import 'package:flutter/material.dart';
+import '../../data/repositories/payment_repository.dart';
+import '../../data/models/payment.dart';
 
 class PaymentsController extends GetxController {
   final PaymentRepository _paymentRepository = PaymentRepository();
-  final CreditRepository _creditRepository = CreditRepository();
 
   // Observable variables
   final RxList<Payment> payments = <Payment>[].obs;
-  final RxList<Payment> todayPayments = <Payment>[].obs;
-  final RxList<Payment> weekPayments = <Payment>[].obs;
-  final RxList<Payment> pendingPayments = <Payment>[].obs;
-  final RxList<Payment> overduePayments = <Payment>[].obs;
-  final RxBool isLoading = false.obs;
+  final RxBool loading = false.obs;
   final RxString error = ''.obs;
 
-  // Filter variables
-  final RxString currentFilter = 'all'.obs;
-  final RxString currentPeriod = 'all'.obs;
+  // Computed properties
+  RxList<Payment> get upcomingPayments => <Payment>[].obs;
 
   @override
   void onInit() {
@@ -31,204 +22,231 @@ class PaymentsController extends GetxController {
 
   Future<void> loadPayments() async {
     try {
-      isLoading.value = true;
+      loading.value = true;
       error.value = '';
 
-      // Load all payments
       final allPayments = await _paymentRepository.getAllPayments();
       payments.value = allPayments;
 
-      // Load filtered payments
-      await _loadFilteredPayments();
+      // Update computed properties
+      await _updateComputedProperties();
     } catch (e) {
       error.value = 'Ошибка загрузки платежей: $e';
       print('Error loading payments: $e');
     } finally {
-      isLoading.value = false;
+      loading.value = false;
     }
   }
 
-  Future<void> _loadFilteredPayments() async {
+  Future<void> _updateComputedProperties() async {
+    upcomingPayments.value = await _paymentRepository.getUpcomingPayments();
+  }
+
+  Future<void> addPayment(Payment payment) async {
     try {
-      // Load today's payments
-      todayPayments.value = await _paymentRepository.getPaymentsForToday();
+      loading.value = true;
+      error.value = '';
 
-      // Load week's payments
-      weekPayments.value = await _paymentRepository.getPaymentsForWeek();
+      await _paymentRepository.addPayment(payment);
+      await loadPayments();
 
-      // Load pending payments
-      pendingPayments.value = await _paymentRepository.getPendingPayments();
-
-      // Load overdue payments
-      overduePayments.value = await _paymentRepository.getOverduePayments();
+      Get.snackbar(
+        'Успешно',
+        'Платеж добавлен',
+        snackPosition: SnackPosition.BOTTOM,
+      );
     } catch (e) {
-      print('Error loading filtered payments: $e');
+      error.value = 'Ошибка добавления платежа: $e';
+      print('Error adding payment: $e');
+    } finally {
+      loading.value = false;
     }
   }
 
-  Future<void> markPaymentAsPaid(int paymentId) async {
+  Future<void> updatePayment(Payment payment) async {
     try {
-      isLoading.value = true;
+      loading.value = true;
+      error.value = '';
+
+      await _paymentRepository.updatePayment(payment);
+      await loadPayments();
+
+      Get.snackbar(
+        'Успешно',
+        'Платеж обновлен',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      error.value = 'Ошибка обновления платежа: $e';
+      print('Error updating payment: $e');
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  Future<void> deletePayment(int id) async {
+    try {
+      loading.value = true;
+      error.value = '';
+
+      await _paymentRepository.deletePayment(id);
+      await loadPayments();
+
+      Get.snackbar(
+        'Успешно',
+        'Платеж удален',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      error.value = 'Ошибка удаления платежа: $e';
+      print('Error deleting payment: $e');
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  Future<void> markPaymentAsPaid(int paymentId, double amount) async {
+    try {
+      loading.value = true;
       error.value = '';
 
       await _paymentRepository.markPaymentAsPaid(paymentId);
-      
-      // Update notifications
-      final payment = await _paymentRepository.getPaymentById(paymentId);
-      if (payment != null) {
-        await NotificationService.onPaymentStatusChanged(payment);
-      }
-      
-      // Reload payments
       await loadPayments();
-      
+
       Get.snackbar(
         'Успешно',
         'Платеж отмечен как оплаченный',
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      error.value = 'Ошибка обновления платежа: $e';
+      error.value = 'Ошибка отметки платежа: $e';
       print('Error marking payment as paid: $e');
     } finally {
-      isLoading.value = false;
+      loading.value = false;
     }
   }
 
   Future<void> markPaymentAsPartial(int paymentId, double partialAmount) async {
     try {
-      isLoading.value = true;
+      loading.value = true;
       error.value = '';
 
       await _paymentRepository.markPaymentAsPartial(paymentId, partialAmount);
-      
-      // Update notifications
-      final payment = await _paymentRepository.getPaymentById(paymentId);
-      if (payment != null) {
-        await NotificationService.onPaymentStatusChanged(payment);
-      }
-      
-      // Reload payments
       await loadPayments();
-      
+
       Get.snackbar(
         'Успешно',
-        'Частичный платеж зарегистрирован',
+        'Платеж отмечен как частично оплаченный',
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      error.value = 'Ошибка регистрации частичного платежа: $e';
+      error.value = 'Ошибка отметки частичного платежа: $e';
       print('Error marking payment as partial: $e');
     } finally {
-      isLoading.value = false;
+      loading.value = false;
     }
   }
 
-  Future<void> markPaymentAsMissed(int paymentId) async {
-    try {
-      isLoading.value = true;
-      error.value = '';
-
-      await _paymentRepository.markPaymentAsMissed(paymentId);
-      
-      // Update notifications
-      final payment = await _paymentRepository.getPaymentById(paymentId);
-      if (payment != null) {
-        await NotificationService.onPaymentStatusChanged(payment);
-      }
-      
-      // Reload payments
-      await loadPayments();
-      
-      Get.snackbar(
-        'Успешно',
-        'Платеж отмечен как пропущенный',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = 'Ошибка обновления платежа: $e';
-      print('Error marking payment as missed: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // Get payments by filter
-  List<Payment> getPaymentsByFilter(String filter) {
-    switch (filter) {
-      case 'today':
-        return todayPayments;
-      case 'week':
-        return weekPayments;
-      case 'pending':
-        return pendingPayments;
-      case 'overdue':
-        return overduePayments;
-      case 'all':
+  // Helper methods
+  String getPaymentStatusName(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.pending:
+        return 'Ожидает оплаты';
+      case PaymentStatus.paid:
+        return 'Оплачен';
+      case PaymentStatus.partial:
+        return 'Частично оплачен';
+      case PaymentStatus.overdue:
+        return 'Просрочен';
       default:
-        return payments;
+        return 'Неизвестно';
     }
   }
 
-  // Get payments by period
-  List<Payment> getPaymentsByPeriod(String period) {
+  String getPaymentTypeName(PaymentType type) {
+    switch (type) {
+      case PaymentType.regular:
+        return 'Обычный';
+      case PaymentType.partial:
+        return 'Частичный';
+      case PaymentType.extra:
+        return 'Дополнительный';
+      default:
+        return 'Неизвестно';
+    }
+  }
+
+  Color getPaymentStatusColor(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.pending:
+        return const Color(0xFFFF9800);
+      case PaymentStatus.paid:
+        return const Color(0xFF4CAF50);
+      case PaymentStatus.partial:
+        return const Color(0xFF2196F3);
+      case PaymentStatus.overdue:
+        return const Color(0xFFF44336);
+      default:
+        return const Color(0xFF9E9E9E);
+    }
+  }
+
+  Color getPaymentUrgencyColor(Payment payment) {
     final now = DateTime.now();
-    
-    switch (period) {
-      case 'today':
-        return payments.where((payment) {
-          return payment.dueDate.year == now.year &&
-                 payment.dueDate.month == now.month &&
-                 payment.dueDate.day == now.day;
-        }).toList();
-      case 'week':
-        final endOfWeek = now.add(const Duration(days: 7));
-        return payments.where((payment) {
-          return payment.dueDate.isAfter(now) && 
-                 payment.dueDate.isBefore(endOfWeek);
-        }).toList();
-      case 'month':
-        final endOfMonth = DateTime(now.year, now.month + 1, 1);
-        return payments.where((payment) {
-          return payment.dueDate.isAfter(now) && 
-                 payment.dueDate.isBefore(endOfMonth);
-        }).toList();
-      case 'all':
-      default:
-        return payments;
+    final daysUntilDue = payment.dueDate.difference(now).inDays;
+
+    if (payment.status == PaymentStatus.paid) {
+      return const Color(0xFF4CAF50);
+    } else if (payment.status == PaymentStatus.overdue) {
+      return const Color(0xFFF44336);
+    } else if (daysUntilDue <= 3) {
+      return const Color(0xFFF44336);
+    } else if (daysUntilDue <= 7) {
+      return const Color(0xFFFF9800);
+    } else {
+      return const Color(0xFF4CAF50);
     }
   }
 
-  // Set current filter
-  void setFilter(String filter) {
-    currentFilter.value = filter;
-  }
-
-  // Set current period
-  void setPeriod(String period) {
-    currentPeriod.value = period;
-  }
-
-  // Get current payments list
-  List<Payment> get currentPayments {
-    final filtered = getPaymentsByFilter(currentFilter.value);
-    return getPaymentsByPeriod(currentPeriod.value);
-  }
-
-  // Get payment by ID
-  Payment? getPaymentById(int id) {
-    try {
-      return payments.firstWhere((payment) => payment.id == id);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Get payments by credit ID
+  // Filter methods
   List<Payment> getPaymentsByCreditId(int creditId) {
-    return payments.where((payment) {
-      return payment.credit.value?.id == creditId;
-    }).toList();
+    return payments.where((payment) => payment.creditId == creditId).toList();
+  }
+
+  List<Payment> getPendingPayments() {
+    return payments.where((payment) => payment.status == PaymentStatus.pending).toList();
+  }
+
+  List<Payment> getOverduePayments() {
+    return payments.where((payment) => payment.status == PaymentStatus.overdue).toList();
+  }
+
+  List<Payment> getPaidPayments() {
+    return payments.where((payment) => payment.status == PaymentStatus.paid).toList();
+  }
+
+  // Get payments for today
+  List<Payment> getPaymentsForToday() {
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return payments.where((payment) => 
+      payment.dueDate.isAfter(startOfDay) && 
+      payment.dueDate.isBefore(endOfDay)
+    ).toList();
+  }
+
+  // Get payments for this week
+  List<Payment> getPaymentsForWeek() {
+    final today = DateTime.now();
+    final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 7));
+
+    return payments.where((payment) => 
+      payment.dueDate.isAfter(startOfWeek) && 
+      payment.dueDate.isBefore(endOfWeek)
+    ).toList();
   }
 
   // Format currency
@@ -239,116 +257,5 @@ class PaymentsController extends GetxController {
   // Format date
   String formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
-  }
-
-  // Get payment status display name
-  String getPaymentStatusName(PaymentStatus status) {
-    switch (status) {
-      case PaymentStatus.pending:
-        return 'Ожидает';
-      case PaymentStatus.paid:
-        return 'Оплачен';
-      case PaymentStatus.missed:
-        return 'Пропущен';
-      case PaymentStatus.partial:
-        return 'Частично';
-      default:
-        return 'Неизвестно';
-    }
-  }
-
-  // Get payment status color
-  Color getPaymentStatusColor(PaymentStatus status) {
-    switch (status) {
-      case PaymentStatus.pending:
-        return const Color(0xFFFF9800); // Orange
-      case PaymentStatus.paid:
-        return const Color(0xFF4CAF50); // Green
-      case PaymentStatus.missed:
-        return const Color(0xFFF44336); // Red
-      case PaymentStatus.partial:
-        return const Color(0xFF2196F3); // Blue
-      default:
-        return const Color(0xFF9E9E9E); // Gray
-    }
-  }
-
-  // Get payment type display name
-  String getPaymentTypeName(PaymentType type) {
-    switch (type) {
-      case PaymentType.regular:
-        return 'Обычный';
-      case PaymentType.partial:
-        return 'Частичный';
-      case PaymentType.custom:
-        return 'Дополнительный';
-      default:
-        return 'Неизвестно';
-    }
-  }
-
-  // Check if payment is overdue
-  bool isPaymentOverdue(Payment payment) {
-    return payment.dueDate.isBefore(DateTime.now()) && 
-           payment.status == PaymentStatus.pending;
-  }
-
-  // Get days until payment
-  int getDaysUntilPayment(Payment payment) {
-    final now = DateTime.now();
-    final dueDate = DateTime(payment.dueDate.year, payment.dueDate.month, payment.dueDate.day);
-    final today = DateTime(now.year, now.month, now.day);
-    
-    return dueDate.difference(today).inDays;
-  }
-
-  // Get payment urgency text
-  String getPaymentUrgencyText(Payment payment) {
-    final days = getDaysUntilPayment(payment);
-    
-    if (days < 0) {
-      return 'Просрочен на ${days.abs()} дн.';
-    } else if (days == 0) {
-      return 'Сегодня';
-    } else if (days == 1) {
-      return 'Завтра';
-    } else if (days <= 7) {
-      return 'Через $days дн.';
-    } else {
-      return 'Через $days дн.';
-    }
-  }
-
-  // Get payment urgency color
-  Color getPaymentUrgencyColor(Payment payment) {
-    final days = getDaysUntilPayment(payment);
-    
-    if (days < 0) {
-      return const Color(0xFFF44336); // Red
-    } else if (days <= 3) {
-      return const Color(0xFFFF9800); // Orange
-    } else if (days <= 7) {
-      return const Color(0xFFFFC107); // Yellow
-    } else {
-      return const Color(0xFF4CAF50); // Green
-    }
-  }
-
-  // Refresh payments
-  Future<void> refresh() async {
-    await loadPayments();
-  }
-
-  // Search payments by credit name
-  List<Payment> searchPayments(String query) {
-    if (query.isEmpty) return currentPayments;
-    
-    return currentPayments.where((payment) {
-      final credit = payment.credit.value;
-      if (credit == null) return false;
-      
-      return credit.name.toLowerCase().contains(query.toLowerCase()) ||
-             (credit.bankName?.toLowerCase().contains(query.toLowerCase()) ?? false);
-    }).toList();
   }
 }

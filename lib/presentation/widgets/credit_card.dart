@@ -50,7 +50,7 @@ class CreditCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    credit.bankName.isNotEmpty ? credit.bankName : 'Не указан',
+                    credit.bankName?.isNotEmpty == true ? credit.bankName! : 'Не указан',
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textPrimary.withOpacity(0.7),
                       fontSize: 14,
@@ -269,13 +269,13 @@ class CreditCard extends StatelessWidget {
   Color _getCreditTypeColor() {
     switch (credit.type) {
       case CreditType.consumer:
-        return AppColors.primary;
+        return const Color(0xFF4CAF50);
       case CreditType.mortgage:
-        return AppColors.accent;
-      case CreditType.micro:
-        return AppColors.warning;
+        return const Color(0xFF2196F3);
+      case CreditType.microloan:
+        return const Color(0xFFFF9800);
       default:
-        return AppColors.textPrimary.withOpacity(0.5);
+        return const Color(0xFF9E9E9E);
     }
   }
 
@@ -285,10 +285,10 @@ class CreditCard extends StatelessWidget {
         return 'Потребительский';
       case CreditType.mortgage:
         return 'Ипотека';
-      case CreditType.micro:
+      case CreditType.microloan:
         return 'Микрозайм';
       default:
-        return 'Другой';
+        return 'Неизвестно';
     }
   }
 
@@ -329,7 +329,7 @@ class CreditCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           
-          _buildDetailRow('Банк', credit.bankName.isNotEmpty ? credit.bankName : 'Не указан'),
+          _buildDetailRow('Банк', credit.bankName?.isNotEmpty == true ? credit.bankName! : 'Не указан'),
           _buildDetailRow('Тип кредита', _getCreditTypeText()),
           _buildDetailRow('Начальная сумма', '${credit.initialAmount.toStringAsFixed(0)} ₽'),
           _buildDetailRow('Текущий остаток', '${credit.currentBalance.toStringAsFixed(0)} ₽'),
@@ -404,10 +404,12 @@ class CreditCard extends StatelessWidget {
     switch (credit.status) {
       case CreditStatus.active:
         return 'Активен';
+      case CreditStatus.paid:
+        return 'Погашен';
       case CreditStatus.overdue:
         return 'Просрочен';
-      case CreditStatus.closed:
-        return 'Закрыт';
+      case CreditStatus.defaulted:
+        return 'Дефолт';
       default:
         return 'Неизвестно';
     }

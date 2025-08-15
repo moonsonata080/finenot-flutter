@@ -1,111 +1,120 @@
-import 'package:isar/isar.dart';
-import '../db/isar_provider.dart';
+// Simple Credit Repository without Isar for testing
 import '../models/credit.dart';
-import '../models/payment.dart';
 
 class CreditRepository {
-  final Isar _isar = IsarProvider.instance;
+  static final List<Credit> _credits = [];
+  static int _nextId = 1;
 
-  // CRUD operations
+  // Get all credits
   Future<List<Credit>> getAllCredits() async {
-    return await _isar.credits.where().findAll();
+    return List.from(_credits);
   }
 
-  Future<Credit?> getCreditById(Id id) async {
-    return await _isar.credits.get(id);
+  // Get credit by ID
+  Future<Credit?> getCreditById(int id) async {
+    try {
+      return _credits.firstWhere((credit) => credit.id == id);
+    } catch (e) {
+      return null;
+    }
   }
 
-  Future<List<Credit>> getActiveCredits() async {
-    return await _isar.credits
-        .filter()
-        .statusEqualTo(CreditStatus.active)
-        .findAll();
+  // Add new credit
+  Future<void> addCredit(Credit credit) async {
+    final newCredit = Credit(
+      id: _nextId++,
+      name: credit.name,
+      bankName: credit.bankName,
+      createdAt: DateTime.now(),
+      initialAmount: credit.initialAmount,
+      currentBalance: credit.currentBalance,
+      monthlyPayment: credit.monthlyPayment,
+      interestRate: credit.interestRate,
+      nextPaymentDate: credit.nextPaymentDate,
+      status: credit.status,
+      type: credit.type,
+    );
+    _credits.add(newCredit);
   }
 
-  Future<Credit> createCredit(Credit credit) async {
-    await _isar.writeTxn(() async {
-      await _isar.credits.put(credit);
-    });
-    return credit;
-  }
-
+  // Update credit
   Future<void> updateCredit(Credit credit) async {
-    await _isar.writeTxn(() async {
-      await _isar.credits.put(credit);
-    });
+    final index = _credits.indexWhere((c) => c.id == credit.id);
+    if (index != -1) {
+      _credits[index] = credit;
+    }
   }
 
-  Future<void> deleteCredit(Id id) async {
-    await _isar.writeTxn(() async {
-      await _isar.credits.delete(id);
-    });
+  // Delete credit
+  Future<void> deleteCredit(int id) async {
+    _credits.removeWhere((credit) => credit.id == id);
   }
 
-  // Business logic
-  Future<Credit> createCreditWithFirstPayment(Credit credit) async {
-    await _isar.writeTxn(() async {
-      // Save credit
-      await _isar.credits.put(credit);
-      
-      // Create first payment
-      final firstPayment = Payment(
-        amount: credit.monthlyPayment,
-        dueDate: credit.nextPaymentDate,
-        status: PaymentStatus.pending,
-        type: PaymentType.regular,
+  // Update credit balance
+  Future<void> updateCreditBalance(int creditId, double newBalance) async {
+    final credit = await getCreditById(creditId);
+    if (credit != null) {
+      final updatedCredit = Credit(
+        id: credit.id,
+        name: credit.name,
+        bankName: credit.bankName,
+        createdAt: credit.createdAt,
+        initialAmount: credit.initialAmount,
+        currentBalance: newBalance,
+        monthlyPayment: credit.monthlyPayment,
+        interestRate: credit.interestRate,
+        nextPaymentDate: credit.nextPaymentDate,
+        status: newBalance <= 0 ? CreditStatus.paid : credit.status,
+        type: credit.type,
       );
-      
-      await _isar.payments.put(firstPayment);
-      
-      // Link payment to credit
-      firstPayment.credit.value = credit;
-      await firstPayment.credit.save();
-    });
-    
-    return credit;
-  }
-
-  Future<void> updateCreditBalance(Id creditId, double newBalance) async {
-    final credit = await getCreditById(creditId);
-    if (credit != null) {
-      credit.currentBalance = newBalance;
-      if (newBalance <= 0) {
-        credit.status = CreditStatus.closed;
-      }
-      await updateCredit(credit);
+      await updateCredit(updatedCredit);
     }
   }
 
-  Future<void> updateNextPaymentDate(Id creditId, DateTime newDate) async {
+  // Update next payment date
+  Future<void> updateNextPaymentDate(int creditId, DateTime newDate) async {
     final credit = await getCreditById(creditId);
     if (credit != null) {
-      credit.nextPaymentDate = newDate;
-      await updateCredit(credit);
+      final updatedCredit = Credit(
+        id: credit.id,
+        name: credit.name,
+        bankName: credit.bankName,
+        createdAt: credit.createdAt,
+        initialAmount: credit.initialAmount,
+        currentBalance: credit.currentBalance,
+        monthlyPayment: credit.monthlyPayment,
+        interestRate: credit.interestRate,
+        nextPaymentDate: newDate,
+        status: credit.status,
+        type: credit.type,
+      );
+      await updateCredit(updatedCredit);
     }
   }
 
-  // Analytics
+  // Get active credits
+  Future<List<Credit>> getActiveCredits() async {
+    return _credits.where((credit) => credit.status == CreditStatus.active).toList();
+  }
+
+  // Get overdue credits
+  Future<List<Credit>> getOverdueCredits() async {
+    final now = DateTime.now();
+    return _credits.where((credit) => 
+      credit.status == CreditStatus.active && 
+      credit.nextPaymentDate.isBefore(now)
+    ).toList();
+  }
+
+  // Calculate total debt
   Future<double> getTotalDebt() async {
     final activeCredits = await getActiveCredits();
     return activeCredits.fold(0.0, (sum, credit) => sum + credit.currentBalance);
   }
 
+  // Calculate total monthly payment
   Future<double> getTotalMonthlyPayment() async {
     final activeCredits = await getActiveCredits();
     return activeCredits.fold(0.0, (sum, credit) => sum + credit.monthlyPayment);
-  }
-
-  Future<int> getActiveCreditsCount() async {
-    return await _isar.credits
-        .filter()
-        .statusEqualTo(CreditStatus.active)
-        .count();
-  }
-
-  Future<int> getOverdueCreditsCount() async {
-    return await _isar.credits
-        .filter()
-        .statusEqualTo(CreditStatus.overdue)
-        .count();
   }
 }

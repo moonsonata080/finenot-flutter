@@ -1,35 +1,37 @@
+// Simple Settings Repository without Isar for testing
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:isar/isar.dart';
-import '../db/isar_provider.dart';
 import '../models/settings.dart';
 
 class SettingsRepository {
-  final Isar _isar = IsarProvider.instance;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  static Settings? _cachedSettings;
 
   static const String _pinKey = 'app_pin';
   static const String _biometricKey = 'biometric_enabled';
 
   // Settings management
   Future<Settings> getSettings() async {
-    Settings? settings = await _isar.settingss.get(1);
-    
-    if (settings == null) {
-      // Create default settings
-      settings = Settings();
-      await _isar.writeTxn(() async {
-        await _isar.settingss.put(settings!);
-      });
+    if (_cachedSettings != null) {
+      return _cachedSettings!;
     }
+
+    // Return default settings for now
+    _cachedSettings = Settings(
+      id: 1,
+      themeMode: AppThemeMode.system,
+      lockEnabled: false,
+      lockType: AppLockType.none,
+      notifyAheadHours: 24,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
     
-    return settings;
+    return _cachedSettings!;
   }
 
   Future<void> updateSettings(Settings settings) async {
     settings.updatedAt = DateTime.now();
-    await _isar.writeTxn(() async {
-      await _isar.settingss.put(settings);
-    });
+    _cachedSettings = settings;
   }
 
   Future<void> updateThemeMode(AppThemeMode themeMode) async {
@@ -90,56 +92,36 @@ class SettingsRepository {
 
   // Reset all settings
   Future<void> resetSettings() async {
-    await _isar.writeTxn(() async {
-      await _isar.settingss.clear();
-    });
-    
     await _secureStorage.deleteAll();
+    _cachedSettings = null;
     
     // Create default settings
-    final defaultSettings = Settings();
-    await _isar.writeTxn(() async {
-      await _isar.settingss.put(defaultSettings);
-    });
+    final defaultSettings = Settings(
+      id: 1,
+      themeMode: AppThemeMode.system,
+      lockEnabled: false,
+      lockType: AppLockType.none,
+      notifyAheadHours: 24,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    
+    await updateSettings(defaultSettings);
   }
 
-  // Export/Import settings
-  Map<String, dynamic> settingsToJson(Settings settings) {
+  // JSON serialization for backup/restore
+  Map<String, dynamic> toJson() {
     return {
-      'themeMode': settings.themeMode.name,
-      'lockEnabled': settings.lockEnabled,
-      'lockType': settings.lockType.name,
-      'notifyAheadHours': settings.notifyAheadHours,
-      'createdAt': settings.createdAt?.toIso8601String(),
-      'updatedAt': settings.updatedAt?.toIso8601String(),
+      'settings': _cachedSettings?.toJson(),
+      'pin': null, // PIN is stored securely, not in backup
+      'biometricEnabled': null, // Biometric setting is stored securely, not in backup
     };
   }
 
-  Future<Settings> settingsFromJson(Map<String, dynamic> json) async {
-    final settings = Settings();
-    
-    settings.themeMode = AppThemeMode.values.firstWhere(
-      (e) => e.name == json['themeMode'],
-      orElse: () => AppThemeMode.system,
-    );
-    
-    settings.lockEnabled = json['lockEnabled'] ?? false;
-    
-    settings.lockType = AppLockType.values.firstWhere(
-      (e) => e.name == json['lockType'],
-      orElse: () => AppLockType.none,
-    );
-    
-    settings.notifyAheadHours = json['notifyAheadHours'] ?? 24;
-    
-    if (json['createdAt'] != null) {
-      settings.createdAt = DateTime.parse(json['createdAt']);
+  Future<void> fromJson(Map<String, dynamic> json) async {
+    if (json['settings'] != null) {
+      final settings = Settings.fromJson(json['settings']);
+      await updateSettings(settings);
     }
-    
-    if (json['updatedAt'] != null) {
-      settings.updatedAt = DateTime.parse(json['updatedAt']);
-    }
-    
-    return settings;
   }
 }

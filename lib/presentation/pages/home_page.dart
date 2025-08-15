@@ -28,6 +28,14 @@ class HomePage extends StatelessWidget {
             icon: const Icon(Icons.person),
             onPressed: () => Get.toNamed('/profile'),
           ),
+          IconButton(
+            onPressed: () => Get.toNamed('/settings'),
+            icon: const Icon(Icons.settings, color: AppColors.textPrimary),
+          ),
+          IconButton(
+            onPressed: () => _addTestData(),
+            icon: const Icon(Icons.add, color: AppColors.textPrimary),
+          ),
         ],
       ),
       body: Obx(() {
@@ -160,7 +168,7 @@ class HomePage extends StatelessWidget {
         Expanded(
           child: _buildMetricCard(
             'Общий долг',
-            controller.formatCurrency(controller.totalDebt),
+            controller.formatCurrency(controller.totalDebt.value),
             Icons.account_balance,
             AppColors.error,
           ),
@@ -168,8 +176,8 @@ class HomePage extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _buildMetricCard(
-            'Свободные деньги',
-            controller.formatCurrency(controller.freeMoney),
+            'Ежемесячные платежи',
+            controller.formatCurrency(controller.totalMonthlyPayment.value),
             Icons.account_balance_wallet,
             AppColors.success,
           ),
@@ -217,14 +225,14 @@ class HomePage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             LinearProgressIndicator(
-              value: controller.debtProgress,
+              value: controller.debtProgress.value,
               backgroundColor: AppColors.background,
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.success),
               minHeight: 8,
             ),
             const SizedBox(height: 8),
             Text(
-              '${(controller.debtProgress * 100).toStringAsFixed(1)}% погашено',
+              '${(controller.debtProgress.value * 100).toStringAsFixed(1)}% погашено',
               style: AppTextStyles.body.copyWith(
                 color: AppColors.textPrimary.withOpacity(0.7),
               ),
@@ -236,7 +244,7 @@ class HomePage extends StatelessWidget {
   }
 
   Widget _buildUpcomingPaymentsCard(PaymentsController controller) {
-    final upcoming = controller.upcomingPayments.take(3).toList();
+    final upcoming = controller.upcomingPayments.value.take(3).toList();
     
     return Card(
       child: Padding(
@@ -424,5 +432,10 @@ class HomePage extends StatelessWidget {
         }
       },
     );
+  }
+
+  void _addTestData() {
+    final creditsController = Get.find<CreditsController>();
+    creditsController.addTestData();
   }
 }

@@ -10,55 +10,17 @@ class DashboardController extends GetxController {
   final PaymentRepository _paymentRepository = PaymentRepository();
 
   // Observable variables
-  final RxDouble totalDebt = 0.0.obs;
-  final RxDouble totalMonthlyPayment = 0.0.obs;
-  final RxDouble totalPaidThisMonth = 0.0.obs;
-  final RxInt activeCreditsCount = 0.obs;
-  final RxInt pendingPaymentsCount = 0.obs;
-  final RxInt overduePaymentsCount = 0.obs;
-  final RxList<Payment> upcomingPayments = <Payment>[].obs;
-  final RxList<Credit> activeCredits = <Credit>[].obs;
+  final RxList<Credit> credits = <Credit>[].obs;
+  final RxList<Payment> payments = <Payment>[].obs;
   final RxBool loading = false.obs;
-
-  // Financial status
-  final RxString financialStatus = 'ok'.obs;
+  final RxString error = ''.obs;
 
   // Computed properties
-  double get debtProgress {
-    if (totalDebt.value == 0) return 0.0;
-    final totalInitial = activeCredits.fold(0.0, (sum, credit) => sum + credit.initialAmount);
-    if (totalInitial == 0) return 0.0;
-    final paid = totalInitial - totalDebt.value;
-    return (paid / totalInitial).clamp(0.0, 1.0);
-  }
-
-  double get freeMoney => 0.0; // Placeholder for future implementation
-
-  Color get financialStatusColor {
-    switch (financialStatus.value) {
-      case 'ok':
-        return const Color(0xFF4CAF50); // Green
-      case 'warn':
-        return const Color(0xFFFF9800); // Orange
-      case 'bad':
-        return const Color(0xFFF44336); // Red
-      default:
-        return const Color(0xFF4CAF50);
-    }
-  }
-
-  String get financialStatusText {
-    switch (financialStatus.value) {
-      case 'ok':
-        return 'Хорошо';
-      case 'warn':
-        return 'Внимание';
-      case 'bad':
-        return 'Проблемы';
-      default:
-        return 'Хорошо';
-    }
-  }
+  RxDouble get totalDebt => 0.0.obs;
+  RxDouble get totalMonthlyPayment => 0.0.obs;
+  RxDouble get debtProgress => 0.0.obs;
+  RxList<Credit> get overdueCredits => <Credit>[].obs;
+  RxList<Payment> get upcomingPayments => <Payment>[].obs;
 
   @override
   void onInit() {
@@ -69,106 +31,104 @@ class DashboardController extends GetxController {
   Future<void> loadDashboardData() async {
     try {
       loading.value = true;
+      error.value = '';
 
-      // Load all data in parallel
-      await Future.wait([
-        _loadTotalDebt(),
-        _loadTotalMonthlyPayment(),
-        _loadTotalPaidThisMonth(),
-        _loadActiveCreditsCount(),
-        _loadPendingPaymentsCount(),
-        _loadOverduePaymentsCount(),
-        _loadUpcomingPayments(),
-        _loadActiveCredits(),
-      ]);
+      // Load credits and payments
+      final allCredits = await _creditRepository.getAllCredits();
+      final allPayments = await _paymentRepository.getAllPayments();
+      
+      credits.value = allCredits;
+      payments.value = allPayments;
 
-      _calculateFinancialStatus();
+      // Update computed properties
+      await _updateComputedProperties();
     } catch (e) {
+      error.value = 'Ошибка загрузки данных: $e';
       print('Error loading dashboard data: $e');
     } finally {
       loading.value = false;
     }
   }
 
-  Future<void> _loadTotalDebt() async {
+  Future<void> _updateComputedProperties() async {
+    // Calculate total debt and monthly payment
     totalDebt.value = await _creditRepository.getTotalDebt();
-  }
-
-  Future<void> _loadTotalMonthlyPayment() async {
     totalMonthlyPayment.value = await _creditRepository.getTotalMonthlyPayment();
-  }
-
-  Future<void> _loadTotalPaidThisMonth() async {
-    totalPaidThisMonth.value = await _paymentRepository.getTotalPaidThisMonth();
-  }
-
-  Future<void> _loadActiveCreditsCount() async {
-    activeCreditsCount.value = await _creditRepository.getActiveCreditsCount();
-  }
-
-  Future<void> _loadPendingPaymentsCount() async {
-    pendingPaymentsCount.value = await _paymentRepository.getPendingPaymentsCount();
-  }
-
-  Future<void> _loadOverduePaymentsCount() async {
-    overduePaymentsCount.value = await _paymentRepository.getOverduePaymentsCount();
-  }
-
-  Future<void> _loadUpcomingPayments() async {
-    upcomingPayments.value = await _paymentRepository.getUpcomingPayments(7);
-  }
-
-  Future<void> _loadActiveCredits() async {
-    activeCredits.value = await _creditRepository.getActiveCredits();
-  }
-
-  void _calculateFinancialStatus() {
-    // Simple financial status calculation
-    if (overduePaymentsCount.value > 0) {
-      financialStatus.value = 'bad';
-    } else if (totalDebt.value > 1000000 || pendingPaymentsCount.value > 5) {
-      financialStatus.value = 'warn';
-    } else {
-      financialStatus.value = 'ok';
+    
+    // Get overdue credits
+    overdueCredits.value = await _creditRepository.getOverdueCredits();
+    
+    // Get upcoming payments
+    upcomingPayments.value = await _paymentRepository.getUpcomingPayments();
+    
+    // Calculate debt progress
+    final totalInitialAmount = credits.fold(0.0, (sum, credit) => sum + credit.initialAmount);
+    if (totalInitialAmount > 0) {
+      final totalPaid = totalInitialAmount - totalDebt.value;
+      debtProgress.value = (totalPaid / totalInitialAmount).clamp(0.0, 1.0);
     }
   }
 
-  // Refresh dashboard data
-  Future<void> refresh() async {
-    await loadDashboardData();
-  }
-
-  // Format currency
+  // Helper methods
   String formatCurrency(double amount) {
     return '${amount.toStringAsFixed(0)} ₽';
   }
 
-  // Get upcoming payments for today
-  List<Payment> getTodayPayments() {
-    final today = DateTime.now();
-    return upcomingPayments.where((payment) {
-      return payment.dueDate.year == today.year &&
-             payment.dueDate.month == today.month &&
-             payment.dueDate.day == today.day;
-    }).toList();
-  }
-
-  // Get upcoming payments for this week
-  List<Payment> getThisWeekPayments() {
-    final today = DateTime.now();
-    final endOfWeek = today.add(const Duration(days: 7));
-    return upcomingPayments.where((payment) {
-      return payment.dueDate.isAfter(today) && 
-             payment.dueDate.isBefore(endOfWeek);
-    }).toList();
-  }
-
-  // Get credit by ID
-  Credit? getCreditById(int id) {
-    try {
-      return activeCredits.firstWhere((credit) => credit.id == id);
-    } catch (e) {
-      return null;
+  Color getFinancialStatusColor() {
+    if (overdueCredits.isNotEmpty) {
+      return const Color(0xFFF44336); // Red for overdue
+    } else if (upcomingPayments.length > 3) {
+      return const Color(0xFFFF9800); // Orange for many upcoming payments
+    } else {
+      return const Color(0xFF4CAF50); // Green for good status
     }
+  }
+
+  String getFinancialStatusText() {
+    if (overdueCredits.isNotEmpty) {
+      return 'Есть просроченные кредиты';
+    } else if (upcomingPayments.length > 3) {
+      return 'Много предстоящих платежей';
+    } else {
+      return 'Финансовое состояние в порядке';
+    }
+  }
+
+  // Get credits by status
+  List<Credit> getActiveCredits() {
+    return credits.where((credit) => credit.status == CreditStatus.active).toList();
+  }
+
+  List<Credit> getOverdueCreditsList() {
+    return credits.where((credit) => credit.status == CreditStatus.overdue).toList();
+  }
+
+  // Get payments for today
+  List<Payment> getPaymentsForToday() {
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return payments.where((payment) => 
+      payment.dueDate.isAfter(startOfDay) && 
+      payment.dueDate.isBefore(endOfDay)
+    ).toList();
+  }
+
+  // Get payments for this week
+  List<Payment> getPaymentsForWeek() {
+    final today = DateTime.now();
+    final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 7));
+
+    return payments.where((payment) => 
+      payment.dueDate.isAfter(startOfWeek) && 
+      payment.dueDate.isBefore(endOfWeek)
+    ).toList();
+  }
+
+  // Refresh dashboard
+  Future<void> refresh() async {
+    await loadDashboardData();
   }
 }
