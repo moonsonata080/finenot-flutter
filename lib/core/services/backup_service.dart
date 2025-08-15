@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../data/db/isar_provider.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../data/models/credit.dart';
 import '../../data/models/payment.dart';
 import '../../data/models/settings.dart';
@@ -181,26 +180,34 @@ class BackupService {
 
   // Create backup summary
   static Future<String> createBackupSummary() async {
-    final isar = IsarProvider.instance;
-    
-    final creditsCount = await isar.credits.count();
-    final paymentsCount = await isar.payments.count();
-    final activeCredits = await isar.credits
-        .filter()
-        .statusEqualTo(CreditStatus.active)
-        .count();
-    final pendingPayments = await isar.payments
-        .filter()
-        .statusEqualTo(PaymentStatus.pending)
-        .count();
+    try {
+      final creditsRepo = CreditRepository();
+      final paymentsRepo = PaymentRepository();
+      
+      final credits = await creditsRepo.getAllCredits();
+      final payments = await paymentsRepo.getAllPayments();
+      
+      final activeCredits = credits.where((c) => c.status == CreditStatus.active).length;
+      final pendingPayments = payments.where((p) => p.status == PaymentStatus.pending).length;
 
-    return '''
+      return '''
 Backup Summary:
-- Total Credits: $creditsCount
+- Total Credits: ${credits.length}
 - Active Credits: $activeCredits
-- Total Payments: $paymentsCount
+- Total Payments: ${payments.length}
 - Pending Payments: $pendingPayments
 - Export Date: ${DateTime.now().toString()}
 ''';
+    } catch (e) {
+      return '''
+Backup Summary:
+- Total Credits: 0
+- Active Credits: 0
+- Total Payments: 0
+- Pending Payments: 0
+- Export Date: ${DateTime.now().toString()}
+- Error: $e
+''';
+    }
   }
 }

@@ -3,8 +3,8 @@ import 'package:get/get.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/auth_lock_service.dart';
-import '../../data/db/isar_provider.dart';
 import '../../core/services/notification_service.dart';
+import '../controllers/settings_controller.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});

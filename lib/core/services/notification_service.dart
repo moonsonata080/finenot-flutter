@@ -1,8 +1,8 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
-import '../../data/db/isar_provider.dart';
 import '../../data/models/payment.dart';
+import '../../data/models/credit.dart';
 import '../../data/models/settings.dart';
 import '../../data/repositories/settings_repository.dart';
 
@@ -167,6 +167,20 @@ class NotificationService {
       default:
         break;
     }
+  }
+
+  static Future<void> _showNotification(int id, String title, String body) async {
+    const androidDetails = AndroidNotificationDetails(
+      'payment_channel',
+      'Payment Notifications',
+      channelDescription: 'Notifications for payment status changes',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notifications.show(id, title, body, notificationDetails);
   }
 
   // Update notifications when settings change

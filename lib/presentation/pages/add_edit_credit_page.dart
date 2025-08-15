@@ -197,7 +197,7 @@ class _AddEditCreditPageState extends State<AddEditCreditPage> {
 
               // Submit button
               Obx(() => ElevatedButton(
-                onPressed: controller.isLoading.value ? null : _submitForm,
+                onPressed: controller.isLoading ? null : _submitForm,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -206,7 +206,7 @@ class _AddEditCreditPageState extends State<AddEditCreditPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: controller.isLoading.value
+                child: controller.isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
                         _isEditMode ? 'Сохранить' : 'Добавить кредит',
