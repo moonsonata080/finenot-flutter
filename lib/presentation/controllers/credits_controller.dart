@@ -192,6 +192,10 @@ class CreditsController extends GetxController {
     return credits.where((credit) => credit.status == CreditStatus.active).toList();
   }
 
+  List<Credit> get activeCredits {
+    return credits.where((credit) => credit.status == CreditStatus.active).toList();
+  }
+
   List<Credit> getOverdueCreditsList() {
     return credits.where((credit) => credit.status == CreditStatus.overdue).toList();
   }
@@ -199,6 +203,8 @@ class CreditsController extends GetxController {
   List<Credit> getPaidCredits() {
     return credits.where((credit) => credit.status == CreditStatus.paid).toList();
   }
+
+  bool get isLoading => loading.value;
 
   // Add test data for development
   Future<void> addTestData() async {

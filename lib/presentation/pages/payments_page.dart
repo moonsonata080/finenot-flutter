@@ -88,7 +88,7 @@ class PaymentsPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.payment_off,
+              Icons.error_outline,
               size: 64,
               color: AppColors.textPrimary.withOpacity(0.3),
             ),

@@ -17,7 +17,7 @@ class SettingsPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'Настройки',
-          style: AppTextStyles.headline3.copyWith(
+          style: AppTextStyles.heading3.copyWith(
             color: AppColors.textPrimary,
           ),
         ),
@@ -75,7 +75,7 @@ class SettingsPage extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: AppTextStyles.headline4.copyWith(
+        style: AppTextStyles.heading4.copyWith(
           fontWeight: FontWeight.bold,
           color: AppColors.primary,
         ),

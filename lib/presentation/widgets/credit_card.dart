@@ -202,9 +202,9 @@ class CreditCard extends StatelessWidget {
         text = 'Просрочен';
         icon = Icons.warning;
         break;
-      case CreditStatus.closed:
+      case CreditStatus.paid:
         color = AppColors.textPrimary.withOpacity(0.5);
-        text = 'Закрыт';
+        text = 'Погашен';
         icon = Icons.cancel;
         break;
       default:

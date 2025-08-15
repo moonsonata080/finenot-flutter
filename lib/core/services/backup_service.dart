@@ -8,30 +8,34 @@ import '../../data/models/credit.dart';
 import '../../data/models/payment.dart';
 import '../../data/models/settings.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../data/repositories/credit_repository.dart';
+import '../../data/repositories/payment_repository.dart';
 
 class BackupService {
   static const String _backupFileName = 'finenot_backup';
 
   // Export all data to JSON
-  static Future<String> exportData() async {
-    final isar = IsarProvider.instance;
-    final settingsRepo = SettingsRepository();
+  static Future<Map<String, dynamic>> exportData() async {
+    try {
+      final creditsRepo = CreditRepository();
+      final paymentsRepo = PaymentRepository();
+      final settingsRepo = SettingsRepository();
 
-    // Get all data
-    final credits = await isar.credits.where().findAll();
-    final payments = await isar.payments.where().findAll();
-    final settings = await settingsRepo.getSettings();
+      final credits = await creditsRepo.getAllCredits();
+      final payments = await paymentsRepo.getAllPayments();
+      final settings = await settingsRepo.getSettings();
 
-    // Prepare export data
-    final exportData = {
-      'version': '1.0',
-      'exportDate': DateTime.now().toIso8601String(),
-      'credits': credits.map((c) => c.toJson()).toList(),
-      'payments': payments.map((p) => p.toJson()).toList(),
-      'settings': settingsRepo.settingsToJson(settings),
-    };
-
-    return jsonEncode(exportData);
+      return {
+        'version': '1.0.0',
+        'exportDate': DateTime.now().toIso8601String(),
+        'credits': credits.map((c) => c.toJson()).toList(),
+        'payments': payments.map((p) => p.toJson()).toList(),
+        'settings': settings.toJson(),
+      };
+    } catch (e) {
+      print('Error exporting data: $e');
+      rethrow;
+    }
   }
 
   // Export to file and share
@@ -46,7 +50,7 @@ class BackupService {
       final file = File('${tempDir.path}/$fileName');
 
       // Write data to file
-      await file.writeAsString(jsonData);
+      await file.writeAsString(jsonEncode(jsonData));
 
       // Share file
       await Share.shareXFiles(
@@ -59,61 +63,40 @@ class BackupService {
   }
 
   // Import data from JSON
-  static Future<void> importData(String jsonData) async {
+  static Future<bool> importData(Map<String, dynamic> data) async {
     try {
-      final data = jsonDecode(jsonData) as Map<String, dynamic>;
-      
-      // Validate backup version
-      final version = data['version'] as String?;
-      if (version == null || !version.startsWith('1.')) {
-        throw Exception('Unsupported backup version: $version');
-      }
-
-      final isar = IsarProvider.instance;
+      final creditsRepo = CreditRepository();
+      final paymentsRepo = PaymentRepository();
       final settingsRepo = SettingsRepository();
 
-      await isar.writeTxn(() async {
-        // Clear existing data
-        await isar.clear();
-
-        // Import credits
-        final creditsJson = data['credits'] as List<dynamic>? ?? [];
-        final credits = <Credit>[];
-        
+      // Import credits
+      if (data['credits'] != null) {
+        final creditsJson = data['credits'] as List;
         for (final creditJson in creditsJson) {
-          final credit = Credit.fromJson(creditJson as Map<String, dynamic>);
-          await isar.credits.put(credit);
-          credits.add(credit);
+          final credit = Credit.fromJson(creditJson);
+          await creditsRepo.addCredit(credit);
         }
+      }
 
-        // Import payments
-        final paymentsJson = data['payments'] as List<dynamic>? ?? [];
-        
+      // Import payments
+      if (data['payments'] != null) {
+        final paymentsJson = data['payments'] as List;
         for (final paymentJson in paymentsJson) {
-          final payment = Payment.fromJson(paymentJson as Map<String, dynamic>);
-          await isar.payments.put(payment);
-          
-          // Link payment to credit if creditId is provided
-          final creditId = paymentJson['creditId'] as int?;
-          if (creditId != null) {
-            final credit = credits.firstWhere(
-              (c) => c.id == creditId,
-              orElse: () => throw Exception('Credit not found for payment: $creditId'),
-            );
-            payment.credit.value = credit;
-            await payment.credit.save();
-          }
+          final payment = Payment.fromJson(paymentJson);
+          await paymentsRepo.addPayment(payment);
         }
+      }
 
-        // Import settings
-        final settingsJson = data['settings'] as Map<String, dynamic>?;
-        if (settingsJson != null) {
-          final settings = await settingsRepo.settingsFromJson(settingsJson);
-          await isar.settingss.put(settings);
-        }
-      });
+      // Import settings
+      if (data['settings'] != null) {
+        final settings = Settings.fromJson(data['settings']);
+        await settingsRepo.updateSettings(settings);
+      }
+
+      return true;
     } catch (e) {
-      throw Exception('Failed to import data: $e');
+      print('Error importing data: $e');
+      return false;
     }
   }
 
@@ -129,7 +112,8 @@ class BackupService {
       if (result != null && result.files.isNotEmpty) {
         final file = File(result.files.first.path!);
         final jsonData = await file.readAsString();
-        await importData(jsonData);
+        final data = jsonDecode(jsonData) as Map<String, dynamic>;
+        await importData(data);
       }
     } catch (e) {
       throw Exception('Failed to import from file: $e');

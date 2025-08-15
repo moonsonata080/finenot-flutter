@@ -25,7 +25,7 @@ class _CalendarPageState extends State<CalendarPage> {
       appBar: AppBar(
         title: Text(
           'Календарь платежей',
-          style: AppTextStyles.headline3.copyWith(
+          style: AppTextStyles.heading3.copyWith(
             color: AppColors.textPrimary,
           ),
         ),
@@ -120,8 +120,8 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildPaymentCard(PaymentsController controller, Payment payment) {
-    final credit = payment.credit.value;
-    final isOverdue = controller.isPaymentOverdue(payment);
+    final isOverdue = payment.dueDate.isBefore(DateTime.now()) && 
+                      payment.status == PaymentStatus.pending;
     final urgencyColor = controller.getPaymentUrgencyColor(payment);
     final statusColor = controller.getPaymentStatusColor(payment.status);
 
@@ -155,18 +155,17 @@ class _CalendarPageState extends State<CalendarPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        credit?.name ?? 'Неизвестный кредит',
-                        style: AppTextStyles.headline4.copyWith(
+                        'Платеж #${payment.id}',
+                        style: AppTextStyles.heading4.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (credit?.bankName != null)
-                        Text(
-                          credit!.bankName!,
-                          style: AppTextStyles.body2.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                      Text(
+                        'Сумма: ${controller.formatCurrency(payment.amount)}',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.textSecondary,
                         ),
+                      ),
                     ],
                   ),
                 ),
@@ -175,7 +174,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   children: [
                     Text(
                       controller.formatCurrency(payment.amount),
-                      style: AppTextStyles.headline4.copyWith(
+                      style: AppTextStyles.heading4.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
                       ),
@@ -287,7 +286,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => controller.markPaymentAsPaid(payment.id),
+                      onPressed: () => controller.markPaymentAsPaid(payment.id, payment.amount),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,

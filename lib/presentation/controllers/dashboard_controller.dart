@@ -74,7 +74,7 @@ class DashboardController extends GetxController {
     return '${amount.toStringAsFixed(0)} ₽';
   }
 
-  Color getFinancialStatusColor() {
+  Color get financialStatusColor {
     if (overdueCredits.isNotEmpty) {
       return const Color(0xFFF44336); // Red for overdue
     } else if (upcomingPayments.length > 3) {
@@ -84,7 +84,7 @@ class DashboardController extends GetxController {
     }
   }
 
-  String getFinancialStatusText() {
+  String get financialStatusText {
     if (overdueCredits.isNotEmpty) {
       return 'Есть просроченные кредиты';
     } else if (upcomingPayments.length > 3) {

@@ -380,21 +380,17 @@ class _AddEditCreditPageState extends State<AddEditCreditPage> {
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
       final credit = Credit(
+        id: _editingCredit?.id ?? 0,
         name: _nameController.text.trim(),
-        bankName: _bankNameController.text.trim().isEmpty 
-            ? null 
-            : _bankNameController.text.trim(),
-        type: _selectedType,
+        bankName: _bankNameController.text.trim().isEmpty ? null : _bankNameController.text.trim(),
+        createdAt: _editingCredit?.createdAt ?? DateTime.now(),
         initialAmount: double.parse(_initialAmountController.text),
-        currentBalance: _isEditMode 
-            ? _editingCredit!.currentBalance 
-            : double.parse(_initialAmountController.text),
+        currentBalance: double.parse(_initialAmountController.text),
         monthlyPayment: double.parse(_monthlyPaymentController.text),
         interestRate: double.parse(_interestRateController.text),
         nextPaymentDate: _nextPaymentDate,
-        status: _isEditMode 
-            ? _editingCredit!.status 
-            : CreditStatus.active,
+        status: CreditStatus.active,
+        type: _selectedType,
       );
 
       final controller = Get.find<CreditsController>();

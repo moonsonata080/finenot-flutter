@@ -221,6 +221,10 @@ class PaymentsController extends GetxController {
     return payments.where((payment) => payment.status == PaymentStatus.overdue).toList();
   }
 
+  List<Payment> get overduePayments {
+    return payments.where((payment) => payment.status == PaymentStatus.overdue).toList();
+  }
+
   List<Payment> getPaidPayments() {
     return payments.where((payment) => payment.status == PaymentStatus.paid).toList();
   }
@@ -257,5 +261,62 @@ class PaymentsController extends GetxController {
   // Format date
   String formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+  }
+
+  // Additional helper methods
+  bool isPaymentOverdue(Payment payment) {
+    return payment.dueDate.isBefore(DateTime.now()) && 
+           payment.status == PaymentStatus.pending;
+  }
+
+  String getPaymentUrgencyText(Payment payment) {
+    final now = DateTime.now();
+    final daysUntilDue = payment.dueDate.difference(now).inDays;
+    
+    if (payment.status == PaymentStatus.paid) {
+      return 'Оплачен';
+    } else if (payment.status == PaymentStatus.overdue) {
+      return 'Просрочен';
+    } else if (daysUntilDue < 0) {
+      return 'Просрочен на ${daysUntilDue.abs()} дн.';
+    } else if (daysUntilDue == 0) {
+      return 'Сегодня';
+    } else if (daysUntilDue == 1) {
+      return 'Завтра';
+    } else if (daysUntilDue <= 7) {
+      return 'Через $daysUntilDue дн.';
+    } else {
+      return 'Через $daysUntilDue дн.';
+    }
+  }
+
+  Future<bool> markPaymentPaid(int paymentId, double amount) async {
+    try {
+      await markPaymentAsPaid(paymentId, amount);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> markPaymentAsMissed(int paymentId) async {
+    try {
+      loading.value = true;
+      error.value = '';
+
+      await _paymentRepository.markPaymentAsMissed(paymentId);
+      await loadPayments();
+
+      Get.snackbar(
+        'Успешно',
+        'Платеж отмечен как пропущенный',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      error.value = 'Ошибка отметки платежа: $e';
+      print('Error marking payment as missed: $e');
+    } finally {
+      loading.value = false;
+    }
   }
 }

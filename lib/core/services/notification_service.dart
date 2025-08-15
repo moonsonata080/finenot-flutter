@@ -145,13 +145,27 @@ class NotificationService {
 
   // Update notifications when payment status changes
   static Future<void> onPaymentStatusChanged(Payment payment) async {
-    if (payment.status == PaymentStatus.paid || 
-        payment.status == PaymentStatus.missed) {
-      // Cancel notification for paid/missed payments
-      await cancelPaymentNotification(payment);
-    } else if (payment.status == PaymentStatus.pending) {
-      // Reschedule notification for pending payments
-      await schedulePaymentNotification(payment);
+    // Remove existing notification for this payment
+    await _notifications.cancel(payment.id.toInt());
+    
+    // Create new notification based on status
+    switch (payment.status) {
+      case PaymentStatus.paid:
+        await _notifications.show(
+          payment.id.toInt(),
+          'Платеж оплачен',
+          'Платеж на сумму ${payment.amount.toStringAsFixed(0)} ₽ успешно оплачен',
+        );
+        break;
+      case PaymentStatus.overdue:
+        await _notifications.show(
+          payment.id.toInt(),
+          'Платеж просрочен',
+          'Платеж на сумму ${payment.amount.toStringAsFixed(0)} ₽ просрочен',
+        );
+        break;
+      default:
+        break;
     }
   }
 

@@ -109,12 +109,12 @@ class CreditRepository {
   // Calculate total debt
   Future<double> getTotalDebt() async {
     final activeCredits = await getActiveCredits();
-    return activeCredits.fold(0.0, (sum, credit) => sum + credit.currentBalance);
+    return activeCredits.fold<double>(0.0, (sum, credit) => sum + credit.currentBalance);
   }
 
   // Calculate total monthly payment
   Future<double> getTotalMonthlyPayment() async {
     final activeCredits = await getActiveCredits();
-    return activeCredits.fold(0.0, (sum, credit) => sum + credit.monthlyPayment);
+    return activeCredits.fold<double>(0.0, (sum, credit) => sum + credit.monthlyPayment);
   }
 }
