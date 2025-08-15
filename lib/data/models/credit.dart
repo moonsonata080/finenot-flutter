@@ -11,7 +11,7 @@ class Credit extends HiveObject {
   String name;
 
   @HiveField(2)
-  String type; // consumer, mortgage, micro, card
+  String type; // consumer, mortgage, micro, card, installment, fine, tax, alimony, rent
 
   @HiveField(3)
   double initialAmount;
@@ -34,6 +34,33 @@ class Credit extends HiveObject {
   @HiveField(9)
   DateTime createdAt;
 
+  @HiveField(10)
+  List<String> tags; // Tags for categorization
+
+  @HiveField(11)
+  String? description; // Additional description
+
+  @HiveField(12)
+  String paymentFrequency; // monthly, weekly, quarterly, yearly, custom
+
+  @HiveField(13)
+  int? customDays; // For custom frequency (e.g., every 14 days)
+
+  @HiveField(14)
+  DateTime? endDate; // End date for the obligation
+
+  @HiveField(15)
+  double? penaltyRate; // Penalty rate for overdue payments
+
+  @HiveField(16)
+  bool isRecurring; // Is this a recurring obligation
+
+  @HiveField(17)
+  String? contractNumber; // Contract or account number
+
+  @HiveField(18)
+  String? contactInfo; // Contact information for the creditor
+
   Credit({
     this.orgId,
     required this.name,
@@ -45,6 +72,15 @@ class Credit extends HiveObject {
     required this.nextPaymentDate,
     required this.status,
     required this.createdAt,
+    this.tags = const [],
+    this.description,
+    this.paymentFrequency = 'monthly',
+    this.customDays,
+    this.endDate,
+    this.penaltyRate,
+    this.isRecurring = true,
+    this.contractNumber,
+    this.contactInfo,
   });
 
   Credit copyWith({
@@ -58,6 +94,15 @@ class Credit extends HiveObject {
     DateTime? nextPaymentDate,
     String? status,
     DateTime? createdAt,
+    List<String>? tags,
+    String? description,
+    String? paymentFrequency,
+    int? customDays,
+    DateTime? endDate,
+    double? penaltyRate,
+    bool? isRecurring,
+    String? contractNumber,
+    String? contactInfo,
   }) {
     return Credit(
       orgId: orgId ?? this.orgId,
@@ -70,6 +115,15 @@ class Credit extends HiveObject {
       nextPaymentDate: nextPaymentDate ?? this.nextPaymentDate,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
+      tags: tags ?? this.tags,
+      description: description ?? this.description,
+      paymentFrequency: paymentFrequency ?? this.paymentFrequency,
+      customDays: customDays ?? this.customDays,
+      endDate: endDate ?? this.endDate,
+      penaltyRate: penaltyRate ?? this.penaltyRate,
+      isRecurring: isRecurring ?? this.isRecurring,
+      contractNumber: contractNumber ?? this.contractNumber,
+      contactInfo: contactInfo ?? this.contactInfo,
     );
   }
 }

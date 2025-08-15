@@ -104,7 +104,7 @@ class CreditRepository {
     );
 
     final payment = Payment(
-      creditId: int.parse(creditId),
+      creditId: creditId,
       amount: credit.monthlyPayment,
       dueDate: nextDate,
       status: 'pending',

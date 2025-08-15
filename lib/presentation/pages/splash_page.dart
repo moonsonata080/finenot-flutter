@@ -6,6 +6,7 @@ import '../controllers/credits_controller.dart';
 import '../controllers/payments_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/org_picker_controller.dart';
+import '../controllers/tags_controller.dart';
 import 'main_page.dart';
 
 class SplashPage extends StatefulWidget {
@@ -67,11 +68,12 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
       await HiveProvider.initialize();
 
       // Initialize all controllers
-      Get.put(DashboardController());
-      Get.put(CreditsController());
-      Get.put(PaymentsController());
-      Get.put(SettingsController());
-      Get.put(OrgPickerController());
+              Get.put(DashboardController());
+        Get.put(CreditsController());
+        Get.put(PaymentsController());
+        Get.put(SettingsController());
+        Get.put(OrgPickerController());
+        Get.put(TagsController());
 
       // Wait for animations and show splash
       await Future.delayed(const Duration(seconds: 3));

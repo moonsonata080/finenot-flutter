@@ -92,7 +92,7 @@ class _TestPageState extends State<TestPage> {
       final credit = Credit(
         name: 'Тестовый кредит ${DateTime.now().millisecondsSinceEpoch}',
         type: 'consumer',
-        orgId: organizations.isNotEmpty ? int.parse(organizations.first.key!) : null,
+        orgId: organizations.isNotEmpty ? organizations.first.key : null,
         initialAmount: 100000,
         currentBalance: 100000,
         monthlyPayment: 10000,
@@ -136,7 +136,7 @@ class _TestPageState extends State<TestPage> {
     try {
       final creditId = creditsWithIds.first['id'] as String;
       final payment = Payment(
-        creditId: int.parse(creditId),
+        creditId: creditId,
         amount: 10000,
         dueDate: DateTime.now().add(const Duration(days: 7)),
         status: 'pending',
