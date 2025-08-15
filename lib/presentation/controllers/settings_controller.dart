@@ -15,7 +15,7 @@ class SettingsController extends GetxController {
 
   // Authentication settings
   final RxBool isLockEnabled = false.obs;
-  final Rx<LockType> currentLockType = LockType.none.obs;
+  final Rx<AppLockType> currentLockType = AppLockType.none.obs;
   final RxBool isBiometricAvailable = false.obs;
   final RxList<String> availableBiometrics = <String>[].obs;
 
@@ -64,7 +64,7 @@ class SettingsController extends GetxController {
   }
 
   // Theme settings
-  Future<void> updateThemeMode(ThemeMode themeMode) async {
+  Future<void> updateThemeMode(AppThemeMode themeMode) async {
     try {
       await _settingsRepository.updateThemeMode(themeMode);
       settings.value.themeMode = themeMode;
@@ -87,7 +87,7 @@ class SettingsController extends GetxController {
       isLockEnabled.value = enabled;
       
       if (!enabled) {
-        currentLockType.value = LockType.none;
+        currentLockType.value = AppLockType.none;
       }
       
       Get.snackbar(
@@ -109,7 +109,7 @@ class SettingsController extends GetxController {
       }
 
       await AuthLockService.setPin(pin);
-      currentLockType.value = LockType.pin;
+      currentLockType.value = AppLockType.pin;
       
       Get.snackbar(
         'Успешно',
@@ -125,7 +125,7 @@ class SettingsController extends GetxController {
   Future<void> removePin() async {
     try {
       await AuthLockService.removePin();
-      currentLockType.value = LockType.none;
+      currentLockType.value = AppLockType.none;
       
       Get.snackbar(
         'Успешно',
@@ -142,7 +142,7 @@ class SettingsController extends GetxController {
     try {
       final success = await AuthLockService.enableBiometric();
       if (success) {
-        currentLockType.value = LockType.biometric;
+        currentLockType.value = AppLockType.biometric;
         Get.snackbar(
           'Успешно',
           'Биометрия включена',
@@ -160,7 +160,7 @@ class SettingsController extends GetxController {
   Future<void> disableBiometric() async {
     try {
       await AuthLockService.disableBiometric();
-      currentLockType.value = LockType.none;
+      currentLockType.value = AppLockType.none;
       
       Get.snackbar(
         'Успешно',
@@ -284,26 +284,26 @@ class SettingsController extends GetxController {
   }
 
   // Helper methods
-  String getThemeModeName(ThemeMode mode) {
+  String getThemeModeName(AppThemeMode mode) {
     switch (mode) {
-      case ThemeMode.system:
+      case AppThemeMode.system:
         return 'Системная';
-      case ThemeMode.light:
+      case AppThemeMode.light:
         return 'Светлая';
-      case ThemeMode.dark:
+      case AppThemeMode.dark:
         return 'Темная';
       default:
         return 'Системная';
     }
   }
 
-  String getLockTypeName(LockType type) {
+  String getLockTypeName(AppLockType type) {
     switch (type) {
-      case LockType.none:
+      case AppLockType.none:
         return 'Отключена';
-      case LockType.pin:
+      case AppLockType.pin:
         return 'PIN-код';
-      case LockType.biometric:
+      case AppLockType.biometric:
         return 'Биометрия';
       default:
         return 'Отключена';
@@ -311,11 +311,11 @@ class SettingsController extends GetxController {
   }
 
   bool isPinSet() {
-    return currentLockType.value == LockType.pin;
+    return currentLockType.value == AppLockType.pin;
   }
 
   bool isBiometricEnabled() {
-    return currentLockType.value == LockType.biometric;
+    return currentLockType.value == AppLockType.biometric;
   }
 
   // Refresh settings

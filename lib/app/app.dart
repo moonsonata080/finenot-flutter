@@ -77,13 +77,13 @@ class FinEnotApp extends StatelessWidget {
     );
   }
 
-  ThemeMode _getThemeMode(ThemeMode settingsThemeMode) {
+  ThemeMode _getThemeMode(AppThemeMode settingsThemeMode) {
     switch (settingsThemeMode) {
-      case ThemeMode.light:
+      case AppThemeMode.light:
         return ThemeMode.light;
-      case ThemeMode.dark:
+      case AppThemeMode.dark:
         return ThemeMode.dark;
-      case ThemeMode.system:
+      case AppThemeMode.system:
       default:
         return ThemeMode.system;
     }

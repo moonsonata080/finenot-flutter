@@ -310,7 +310,7 @@ class SettingsPage extends StatelessWidget {
         title: const Text('Выберите тему'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: ThemeMode.values.map((mode) {
+          children: AppThemeMode.values.map((mode) {
             return ListTile(
               title: Text(controller.getThemeModeName(mode)),
               trailing: controller.settings.value.themeMode == mode

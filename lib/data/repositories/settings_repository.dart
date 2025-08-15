@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:isar/isar.dart';
 import '../db/isar_provider.dart';
 import '../models/settings.dart';
 
@@ -31,7 +32,7 @@ class SettingsRepository {
     });
   }
 
-  Future<void> updateThemeMode(ThemeMode themeMode) async {
+  Future<void> updateThemeMode(AppThemeMode themeMode) async {
     final settings = await getSettings();
     settings.themeMode = themeMode;
     await updateSettings(settings);
@@ -41,15 +42,15 @@ class SettingsRepository {
     final settings = await getSettings();
     settings.lockEnabled = enabled;
     if (!enabled) {
-      settings.lockType = LockType.none;
+      settings.lockType = AppLockType.none;
     }
     await updateSettings(settings);
   }
 
-  Future<void> updateLockType(LockType lockType) async {
+  Future<void> updateLockType(AppLockType lockType) async {
     final settings = await getSettings();
     settings.lockType = lockType;
-    settings.lockEnabled = lockType != LockType.none;
+    settings.lockEnabled = lockType != AppLockType.none;
     await updateSettings(settings);
   }
 
@@ -117,16 +118,16 @@ class SettingsRepository {
   Future<Settings> settingsFromJson(Map<String, dynamic> json) async {
     final settings = Settings();
     
-    settings.themeMode = ThemeMode.values.firstWhere(
+    settings.themeMode = AppThemeMode.values.firstWhere(
       (e) => e.name == json['themeMode'],
-      orElse: () => ThemeMode.system,
+      orElse: () => AppThemeMode.system,
     );
     
     settings.lockEnabled = json['lockEnabled'] ?? false;
     
-    settings.lockType = LockType.values.firstWhere(
+    settings.lockType = AppLockType.values.firstWhere(
       (e) => e.name == json['lockType'],
-      orElse: () => LockType.none,
+      orElse: () => AppLockType.none,
     );
     
     settings.notifyAheadHours = json['notifyAheadHours'] ?? 24;

@@ -1,99 +1,73 @@
-import 'package:isar/isar.dart';
-import 'payment.dart';
-
-part 'credit.g.dart';
-
-@collection
+// Simple Credit model without Isar for testing
 class Credit {
-  Id id = Isar.autoIncrement;
-
+  int id;
   String name;
-
   String? bankName;
-
-  @enumerated
-  CreditType type = CreditType.consumer;
-
+  DateTime createdAt;
   double initialAmount;
-
   double currentBalance;
-
   double monthlyPayment;
-
   double interestRate;
-
   DateTime nextPaymentDate;
-
-  @enumerated
-  CreditStatus status = CreditStatus.active;
-
-  DateTime createdAt = DateTime.now();
-
-  @Backlink(to: 'credit')
-  final IsarLinks<Payment> payments = IsarLinks<Payment>();
+  CreditStatus status;
+  CreditType type;
 
   Credit({
+    required this.id,
     required this.name,
     this.bankName,
-    required this.type,
+    required this.createdAt,
     required this.initialAmount,
     required this.currentBalance,
     required this.monthlyPayment,
     required this.interestRate,
     required this.nextPaymentDate,
     required this.status,
+    required this.type,
   });
 
-  // JSON serialization for backup/restore
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'bankName': bankName,
-        'type': type.name,
-        'initialAmount': initialAmount,
-        'currentBalance': currentBalance,
-        'monthlyPayment': monthlyPayment,
-        'interestRate': interestRate,
-        'nextPaymentDate': nextPaymentDate.toIso8601String(),
-        'status': status.name,
-        'createdAt': createdAt.toIso8601String(),
-      };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'bankName': bankName,
+      'createdAt': createdAt.toIso8601String(),
+      'initialAmount': initialAmount,
+      'currentBalance': currentBalance,
+      'monthlyPayment': monthlyPayment,
+      'interestRate': interestRate,
+      'nextPaymentDate': nextPaymentDate.toIso8601String(),
+      'status': status.name,
+      'type': type.name,
+    };
+  }
 
   factory Credit.fromJson(Map<String, dynamic> json) {
-    final credit = Credit(
-      name: json['name'] ?? '',
+    return Credit(
+      id: json['id'],
+      name: json['name'],
       bankName: json['bankName'],
-      type: CreditType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => CreditType.consumer,
-      ),
-      initialAmount: (json['initialAmount'] ?? 0).toDouble(),
-      currentBalance: (json['currentBalance'] ?? 0).toDouble(),
-      monthlyPayment: (json['monthlyPayment'] ?? 0).toDouble(),
-      interestRate: (json['interestRate'] ?? 0).toDouble(),
+      createdAt: DateTime.parse(json['createdAt']),
+      initialAmount: json['initialAmount'].toDouble(),
+      currentBalance: json['currentBalance'].toDouble(),
+      monthlyPayment: json['monthlyPayment'].toDouble(),
+      interestRate: json['interestRate'].toDouble(),
       nextPaymentDate: DateTime.parse(json['nextPaymentDate']),
-      status: CreditStatus.values.firstWhere(
-        (e) => e.name == json['status'],
-        orElse: () => CreditStatus.active,
-      ),
+      status: CreditStatus.values.firstWhere((e) => e.name == json['status']),
+      type: CreditType.values.firstWhere((e) => e.name == json['type']),
     );
-    
-    if (json['createdAt'] != null) {
-      credit.createdAt = DateTime.parse(json['createdAt']);
-    }
-    
-    return credit;
   }
+}
+
+enum CreditStatus {
+  active,
+  paid,
+  overdue,
+  defaulted,
 }
 
 enum CreditType {
   consumer,
   mortgage,
-  micro,
-}
-
-enum CreditStatus {
-  active,
-  closed,
-  overdue,
+  microloan,
 }

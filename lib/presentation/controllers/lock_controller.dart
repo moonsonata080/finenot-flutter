@@ -11,7 +11,7 @@ class LockController extends GetxController {
   final RxString error = ''.obs;
   final RxBool isAuthenticated = false.obs;
   final RxBool isLockEnabled = false.obs;
-  final Rx<LockType> currentLockType = LockType.none.obs;
+  final Rx<AppLockType> currentLockType = AppLockType.none.obs;
 
   // PIN authentication
   final RxString enteredPin = ''.obs;
@@ -176,14 +176,14 @@ class LockController extends GetxController {
 
   // Switch to PIN authentication
   void switchToPin() {
-    currentLockType.value = LockType.pin;
+    currentLockType.value = AppLockType.pin;
     clearPin();
   }
 
   // Switch to biometric authentication
   void switchToBiometric() {
     if (isBiometricAvailable.value && isBiometricEnabled.value) {
-      currentLockType.value = LockType.biometric;
+      currentLockType.value = AppLockType.biometric;
       authenticateWithBiometric();
     }
   }
@@ -211,11 +211,11 @@ class LockController extends GetxController {
   // Get lock type display name
   String getLockTypeDisplayName() {
     switch (currentLockType.value) {
-      case LockType.pin:
+      case AppLockType.pin:
         return 'PIN-код';
-      case LockType.biometric:
+      case AppLockType.biometric:
         return 'Биометрия';
-      case LockType.none:
+      case AppLockType.none:
       default:
         return 'Без блокировки';
     }
@@ -231,7 +231,7 @@ class LockController extends GetxController {
 
   // Check if authentication is required
   bool get isAuthenticationRequired {
-    return isLockEnabled.value && currentLockType.value != LockType.none;
+    return isLockEnabled.value && currentLockType.value != AppLockType.none;
   }
 
   // Reset authentication state

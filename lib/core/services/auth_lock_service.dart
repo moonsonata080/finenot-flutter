@@ -1,6 +1,7 @@
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../data/models/settings.dart';
 
 class AuthLockService {
   static final LocalAuthentication _localAuth = LocalAuthentication();
@@ -78,13 +79,13 @@ class AuthLockService {
   // Set PIN
   static Future<void> setPin(String pin) async {
     await _settingsRepo.setPin(pin);
-    await _settingsRepo.updateLockType(LockType.pin);
+    await _settingsRepo.updateLockType(AppLockType.pin);
   }
 
   // Remove PIN
   static Future<void> removePin() async {
     await _settingsRepo.removePin();
-    await _settingsRepo.updateLockType(LockType.none);
+    await _settingsRepo.updateLockType(AppLockType.none);
   }
 
   // Enable biometric authentication
@@ -103,7 +104,7 @@ class AuthLockService {
 
       if (authenticated) {
         await _settingsRepo.setBiometricEnabled(true);
-        await _settingsRepo.updateLockType(LockType.biometric);
+        await _settingsRepo.updateLockType(AppLockType.biometric);
         return true;
       }
 
@@ -116,7 +117,7 @@ class AuthLockService {
   // Disable biometric authentication
   static Future<void> disableBiometric() async {
     await _settingsRepo.setBiometricEnabled(false);
-    await _settingsRepo.updateLockType(LockType.none);
+    await _settingsRepo.updateLockType(AppLockType.none);
   }
 
   // Authenticate based on current lock type
@@ -126,12 +127,12 @@ class AuthLockService {
     if (!settings.lockEnabled) return true;
 
     switch (settings.lockType) {
-      case LockType.pin:
+      case AppLockType.pin:
         // PIN authentication should be handled by UI
         return false;
-      case LockType.biometric:
+      case AppLockType.biometric:
         return await authenticateWithBiometric();
-      case LockType.none:
+      case AppLockType.none:
       default:
         return true;
     }
@@ -140,11 +141,11 @@ class AuthLockService {
   // Check if authentication is required
   static Future<bool> isAuthenticationRequired() async {
     final settings = await _settingsRepo.getSettings();
-    return settings.lockEnabled && settings.lockType != LockType.none;
+    return settings.lockEnabled && settings.lockType != AppLockType.none;
   }
 
   // Get current lock type
-  static Future<LockType> getCurrentLockType() async {
+  static Future<AppLockType> getCurrentLockType() async {
     final settings = await _settingsRepo.getSettings();
     return settings.lockType;
   }

@@ -64,9 +64,9 @@ class LockPage extends StatelessWidget {
                 const SizedBox(height: 48),
 
                 // Authentication method
-                if (controller.currentLockType.value == LockType.pin) ...[
+                if (controller.currentLockType.value == AppLockType.pin) ...[
                   _buildPinAuthentication(controller),
-                ] else if (controller.currentLockType.value == LockType.biometric) ...[
+                ] else if (controller.currentLockType.value == AppLockType.biometric) ...[
                   _buildBiometricAuthentication(controller),
                 ] else ...[
                   _buildNoLockMessage(),
@@ -96,7 +96,7 @@ class LockPage extends StatelessWidget {
                 // Switch authentication method
                 if (controller.isBiometricAvailable.value && 
                     controller.isBiometricEnabled.value &&
-                    controller.currentLockType.value == LockType.pin)
+                    controller.currentLockType.value == AppLockType.pin)
                   TextButton(
                     onPressed: controller.switchToBiometric,
                     child: Text(
@@ -107,7 +107,7 @@ class LockPage extends StatelessWidget {
                     ),
                   ),
 
-                if (controller.currentLockType.value == LockType.biometric)
+                if (controller.currentLockType.value == AppLockType.biometric)
                   TextButton(
                     onPressed: controller.switchToPin,
                     child: Text(
