@@ -1,120 +1,143 @@
-// Simple Credit Repository without Isar for testing
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/credit.dart';
+import '../models/payment.dart';
+import '../../core/services/hive_provider.dart';
 
 class CreditRepository {
-  static final List<Credit> _credits = [];
-  static int _nextId = 1;
+  final Box<Credit> _creditsBox = HiveProvider.creditsBox;
+  final Box<Payment> _paymentsBox = HiveProvider.paymentsBox;
 
   // Get all credits
   Future<List<Credit>> getAllCredits() async {
-    return List.from(_credits);
-  }
-
-  // Get credit by ID
-  Future<Credit?> getCreditById(int id) async {
-    try {
-      return _credits.firstWhere((credit) => credit.id == id);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Add new credit
-  Future<void> addCredit(Credit credit) async {
-    final newCredit = Credit(
-      id: _nextId++,
-      name: credit.name,
-      bankName: credit.bankName,
-      createdAt: DateTime.now(),
-      initialAmount: credit.initialAmount,
-      currentBalance: credit.currentBalance,
-      monthlyPayment: credit.monthlyPayment,
-      interestRate: credit.interestRate,
-      nextPaymentDate: credit.nextPaymentDate,
-      status: credit.status,
-      type: credit.type,
-    );
-    _credits.add(newCredit);
-  }
-
-  // Update credit
-  Future<void> updateCredit(Credit credit) async {
-    final index = _credits.indexWhere((c) => c.id == credit.id);
-    if (index != -1) {
-      _credits[index] = credit;
-    }
-  }
-
-  // Delete credit
-  Future<void> deleteCredit(int id) async {
-    _credits.removeWhere((credit) => credit.id == id);
-  }
-
-  // Update credit balance
-  Future<void> updateCreditBalance(int creditId, double newBalance) async {
-    final credit = await getCreditById(creditId);
-    if (credit != null) {
-      final updatedCredit = Credit(
-        id: credit.id,
-        name: credit.name,
-        bankName: credit.bankName,
-        createdAt: credit.createdAt,
-        initialAmount: credit.initialAmount,
-        currentBalance: newBalance,
-        monthlyPayment: credit.monthlyPayment,
-        interestRate: credit.interestRate,
-        nextPaymentDate: credit.nextPaymentDate,
-        status: newBalance <= 0 ? CreditStatus.paid : credit.status,
-        type: credit.type,
-      );
-      await updateCredit(updatedCredit);
-    }
-  }
-
-  // Update next payment date
-  Future<void> updateNextPaymentDate(int creditId, DateTime newDate) async {
-    final credit = await getCreditById(creditId);
-    if (credit != null) {
-      final updatedCredit = Credit(
-        id: credit.id,
-        name: credit.name,
-        bankName: credit.bankName,
-        createdAt: credit.createdAt,
-        initialAmount: credit.initialAmount,
-        currentBalance: credit.currentBalance,
-        monthlyPayment: credit.monthlyPayment,
-        interestRate: credit.interestRate,
-        nextPaymentDate: newDate,
-        status: credit.status,
-        type: credit.type,
-      );
-      await updateCredit(updatedCredit);
-    }
+    return _creditsBox.values.toList();
   }
 
   // Get active credits
   Future<List<Credit>> getActiveCredits() async {
-    return _credits.where((credit) => credit.status == CreditStatus.active).toList();
+    return _creditsBox.values.where((credit) => credit.status == 'active').toList();
+  }
+
+  // Get credit by ID
+  Future<Credit?> getCreditById(String id) async {
+    return _creditsBox.get(id);
+  }
+
+  // Add new credit
+  Future<String> addCredit(Credit credit) async {
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    await _creditsBox.put(id, credit);
+
+    // Create first payment for the credit
+    await _createFirstPayment(id, credit);
+
+    return id;
+  }
+
+  // Update credit
+  Future<void> updateCredit(String id, Credit credit) async {
+    await _creditsBox.put(id, credit);
+  }
+
+  // Delete credit
+  Future<void> deleteCredit(String id) async {
+    // Delete associated payments first
+    final payments = _paymentsBox.values.where((payment) => payment.creditId.toString() == id).toList();
+    for (final payment in payments) {
+      await payment.delete();
+    }
+    
+    // Delete credit
+    await _creditsBox.delete(id);
+  }
+
+  // Get credits by organization
+  Future<List<Credit>> getCreditsByOrg(int orgId) async {
+    return _creditsBox.values.where((credit) => credit.orgId == orgId).toList();
+  }
+
+  // Get credits by type
+  Future<List<Credit>> getCreditsByType(String type) async {
+    return _creditsBox.values.where((credit) => credit.type == type).toList();
   }
 
   // Get overdue credits
   Future<List<Credit>> getOverdueCredits() async {
     final now = DateTime.now();
-    return _credits.where((credit) => 
-      credit.status == CreditStatus.active && 
-      credit.nextPaymentDate.isBefore(now)
-    ).toList();
+    return _creditsBox.values
+        .where((credit) => credit.status == 'active' && credit.nextPaymentDate.isBefore(now))
+        .toList();
   }
 
-  // Calculate total debt
+  // Update credit balance after payment
+  Future<void> updateCreditBalance(String creditId, double paymentAmount) async {
+    final credit = await getCreditById(creditId);
+    if (credit != null) {
+      final newBalance = credit.currentBalance - paymentAmount;
+      final updatedCredit = credit.copyWith(
+        currentBalance: newBalance > 0 ? newBalance : 0,
+        status: newBalance <= 0 ? 'closed' : credit.status,
+      );
+      
+      await updateCredit(creditId, updatedCredit);
+    }
+  }
+
+  // Create first payment for new credit
+  Future<void> _createFirstPayment(String creditId, Credit credit) async {
+    final payment = Payment(
+      creditId: int.parse(creditId),
+      amount: credit.monthlyPayment,
+      dueDate: credit.nextPaymentDate,
+      status: 'pending',
+      createdAt: DateTime.now(),
+    );
+
+    await _paymentsBox.add(payment);
+  }
+
+  // Create next payment for credit
+  Future<void> createNextPayment(String creditId, Credit credit) async {
+    final nextDate = DateTime(
+      credit.nextPaymentDate.year,
+      credit.nextPaymentDate.month + 1,
+      credit.nextPaymentDate.day,
+    );
+
+    final payment = Payment(
+      creditId: int.parse(creditId),
+      amount: credit.monthlyPayment,
+      dueDate: nextDate,
+      status: 'pending',
+      createdAt: DateTime.now(),
+    );
+
+    await _paymentsBox.add(payment);
+
+    // Update credit next payment date
+    await updateCredit(creditId, credit.copyWith(nextPaymentDate: nextDate));
+  }
+
+  // Get total debt
   Future<double> getTotalDebt() async {
     final activeCredits = await getActiveCredits();
     return activeCredits.fold<double>(0.0, (sum, credit) => sum + credit.currentBalance);
   }
 
-  // Calculate total monthly payment
-  Future<double> getTotalMonthlyPayment() async {
+  // Get total monthly payments
+  Future<double> getTotalMonthlyPayments() async {
     final activeCredits = await getActiveCredits();
     return activeCredits.fold<double>(0.0, (sum, credit) => sum + credit.monthlyPayment);
+  }
+
+  // Get credits count by status
+  Future<Map<String, int>> getCreditsCountByStatus() async {
+    final allCredits = await getAllCredits();
+    final counts = <String, int>{};
+    
+    for (final credit in allCredits) {
+      counts[credit.status] = (counts[credit.status] ?? 0) + 1;
+    }
+    
+    return counts;
   }
 }

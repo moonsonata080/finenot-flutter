@@ -1,371 +1,445 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:lottie/lottie.dart';
-import 'dart:async';
+import 'core/services/hive_provider.dart';
+import 'data/repositories/credit_repository.dart';
+import 'data/repositories/payment_repository.dart';
+import 'data/repositories/settings_repository.dart';
+import 'data/repositories/org_repository.dart';
+import 'presentation/controllers/dashboard_controller.dart';
+import 'presentation/controllers/credits_controller.dart';
+import 'data/models/credit.dart';
+import 'data/models/payment.dart';
+import 'data/models/settings.dart';
+import 'data/models/org.dart';
 
-void main() {
-  // Обеспечиваем инициализацию Flutter binding
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Устанавливаем системные настройки
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
+  // Initialize Hive
+  await HiveProvider.initialize();
   
-  // Устанавливаем ориентацию экрана
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Initialize controllers
+  Get.put(DashboardController());
+  Get.put(CreditsController());
   
-  // Запускаем приложение с обработкой ошибок
-  runZonedGuarded(() {
-    runApp(const FinEnotApp());
-  }, (error, stack) {
-    print('Error in main: $error');
-    print('Stack trace: $stack');
-  });
+  runApp(const MyApp());
 }
 
-class FinEnotApp extends StatelessWidget {
-  const FinEnotApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'FinEnot',
-      debugShowCheckedModeBanner: false,
+      title: 'FinEnot - Тестирование Hive',
       theme: ThemeData(
-        primarySwatch: Colors.orange,
-        primaryColor: const Color(0xFFFF8C00),
-        scaffoldBackgroundColor: const Color(0xFFFFF8F0),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFFF8C00),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-        ),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFF8C00),
-          background: const Color(0xFFFFF8F0),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const DashboardPage(),
+      home: const TestPage(),
     );
   }
 }
 
-class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+class TestPage extends StatefulWidget {
+  const TestPage({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<TestPage> createState() => _TestPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-  int _currentIndex = 0;
-
-  final List<Widget> _pages = [
-    const HomePage(),
-    const CreditsPage(),
-    const PaymentsPage(),
-    const SettingsPage(),
-  ];
+class _TestPageState extends State<TestPage> {
+  final CreditRepository _creditRepo = CreditRepository();
+  final PaymentRepository _paymentRepo = PaymentRepository();
+  final SettingsRepository _settingsRepo = SettingsRepository();
+  final OrgRepository _orgRepo = OrgRepository();
+  
+  final DashboardController _dashboardController = Get.find<DashboardController>();
+  final CreditsController _creditsController = Get.find<CreditsController>();
+  
+  List<Credit> credits = [];
+  List<Payment> payments = [];
+  Settings? settings;
+  List<Org> organizations = [];
+  
+  String statusMessage = 'Готов к тестированию';
 
   @override
   void initState() {
     super.initState();
-    print('DashboardPage initialized');
-    
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutBack,
-    ));
-    
-    _animationController.forward();
+    _loadAllData();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+  Future<void> _loadAllData() async {
+    setState(() {
+      statusMessage = 'Загрузка данных...';
+    });
+
+    try {
+      // Load all data
+      await Future.wait([
+        _loadCredits(),
+        _loadPayments(),
+        _loadSettings(),
+        _loadOrganizations(),
+      ]);
+
+      setState(() {
+        statusMessage = 'Данные загружены успешно!';
+      });
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Ошибка загрузки: $e';
+      });
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: _pages[_currentIndex],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        selectedItemColor: const Color(0xFFFF8C00),
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        elevation: 8,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Главная',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.credit_card),
-            label: 'Кредиты',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.payment),
-            label: 'Платежи',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Настройки',
-          ),
-        ],
-      ),
-    );
+  Future<void> _loadCredits() async {
+    credits = await _creditRepo.getAllCredits();
   }
-}
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  Future<void> _loadPayments() async {
+    payments = await _paymentRepo.getAllPayments();
+  }
+
+  Future<void> _loadSettings() async {
+    settings = await _settingsRepo.getSettings();
+  }
+
+  Future<void> _loadOrganizations() async {
+    await _orgRepo.initialize();
+    organizations = await _orgRepo.getAllOrgs();
+  }
+
+  Future<void> _testCreateCredit() async {
+    setState(() {
+      statusMessage = 'Создание тестового кредита...';
+    });
+
+    try {
+      final credit = Credit(
+        name: 'Тестовый кредит ${DateTime.now().millisecondsSinceEpoch}',
+        type: 'consumer',
+        orgId: organizations.isNotEmpty ? int.parse(organizations.first.key!) : null,
+        initialAmount: 100000,
+        currentBalance: 100000,
+        monthlyPayment: 10000,
+        interestRate: 12.5,
+        nextPaymentDate: DateTime.now().add(const Duration(days: 30)),
+        status: 'active',
+        createdAt: DateTime.now(),
+      );
+
+      final creditId = await _creditRepo.addCredit(credit);
+      
+      setState(() {
+        statusMessage = 'Кредит создан с ID: $creditId';
+      });
+
+      await _loadCredits();
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Ошибка создания кредита: $e';
+      });
+    }
+  }
+
+  Future<void> _testCreatePayment() async {
+    if (credits.isEmpty) {
+      setState(() {
+        statusMessage = 'Сначала создайте кредит!';
+      });
+      return;
+    }
+
+    setState(() {
+      statusMessage = 'Создание тестового платежа...';
+    });
+
+    try {
+      final payment = Payment(
+        creditId: int.parse(credits.first.key!),
+        amount: 10000,
+        dueDate: DateTime.now().add(const Duration(days: 7)),
+        status: 'pending',
+        createdAt: DateTime.now(),
+      );
+
+      final paymentId = await _paymentRepo.addPayment(payment);
+      
+      setState(() {
+        statusMessage = 'Платеж создан с ID: $paymentId';
+      });
+
+      await _loadPayments();
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Ошибка создания платежа: $e';
+      });
+    }
+  }
+
+  Future<void> _testUpdateSettings() async {
+    setState(() {
+      statusMessage = 'Обновление настроек...';
+    });
+
+    try {
+      final updatedSettings = settings?.copyWith(
+        themeMode: 'dark',
+        notifyAheadHours: 48,
+        lockEnabled: true,
+        lockType: 'pin',
+        monthlyIncome: 100000,
+      );
+
+      if (updatedSettings != null) {
+        await _settingsRepo.updateSettings(updatedSettings);
+        settings = updatedSettings;
+        
+        setState(() {
+          statusMessage = 'Настройки обновлены!';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Ошибка обновления настроек: $e';
+      });
+    }
+  }
+
+  Future<void> _testDashboardController() async {
+    setState(() {
+      statusMessage = 'Тестирование DashboardController...';
+    });
+
+    try {
+      await _dashboardController.loadDashboardData();
+      
+      final summary = _dashboardController.getDashboardSummary();
+      
+      setState(() {
+        statusMessage = 'DashboardController работает! DSR: ${summary['dsr']?.toStringAsFixed(1)}%';
+      });
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Ошибка DashboardController: $e';
+      });
+    }
+  }
+
+  Future<void> _testCreditsController() async {
+    setState(() {
+      statusMessage = 'Тестирование CreditsController...';
+    });
+
+    try {
+      await _creditsController.loadCredits();
+      
+      final summary = _creditsController.getCreditsSummary();
+      
+      setState(() {
+        statusMessage = 'CreditsController работает! Кредитов: ${summary['totalCredits']}';
+      });
+    } catch (e) {
+      setState(() {
+        statusMessage = 'Ошибка CreditsController: $e';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'FinEnot',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('FinEnot - Тестирование Hive'),
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFFF8F0),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 120,
-                color: Color(0xFFFF8C00),
-              ),
-              SizedBox(height: 30),
-              Text(
-                'FinEnot',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFFF8C00),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Status
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Статус: $statusMessage',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Кредитов: ${credits.length}'),
+                    Text('Платежей: ${payments.length}'),
+                    Text('Организаций: ${organizations.length}'),
+                    if (settings != null) Text('Тема: ${settings!.themeMode}'),
+                  ],
                 ),
               ),
-              SizedBox(height: 10),
-              Text(
-                'Менеджер кредитов и микрозаймов',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF6B7280),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Test buttons
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Тестирование репозиториев',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Repository tests
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _testCreateCredit,
+                          child: const Text('Создать кредит'),
+                        ),
+                        ElevatedButton(
+                          onPressed: _testCreatePayment,
+                          child: const Text('Создать платеж'),
+                        ),
+                        ElevatedButton(
+                          onPressed: _testUpdateSettings,
+                          child: const Text('Обновить настройки'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-              SizedBox(height: 40),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Controller tests
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Тестирование контроллеров',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _testDashboardController,
+                          child: const Text('DashboardController'),
+                        ),
+                        ElevatedButton(
+                          onPressed: _testCreditsController,
+                          child: const Text('CreditsController'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Data display
+            if (credits.isNotEmpty) ...[
               Card(
-                elevation: 4,
-                margin: EdgeInsets.symmetric(horizontal: 20),
                 child: Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 80,
-                        color: Colors.green,
-                      ),
-                      SizedBox(height: 10),
                       Text(
-                        'Приложение успешно запущено!',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.green,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
+                        'Кредиты (${credits.length})',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      SizedBox(height: 5),
-                      Text(
-                        'Все зависимости подключены',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF6B7280),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      const SizedBox(height: 8),
+                      ...credits.take(3).map((credit) => ListTile(
+                        title: Text(credit.name),
+                        subtitle: Text('${credit.currentBalance.toStringAsFixed(0)} ₽'),
+                        trailing: Text(credit.status),
+                      )),
+                      if (credits.length > 3)
+                        Text('... и еще ${credits.length - 3} кредитов'),
                     ],
                   ),
                 ),
               ),
-              SizedBox(height: 20),
-              Text(
-                'Версия: 1.0.0',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6B7280),
+            ],
+            
+            if (payments.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Платежи (${payments.length})',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      ...payments.take(3).map((payment) => ListTile(
+                        title: Text('${payment.amount.toStringAsFixed(0)} ₽'),
+                        subtitle: Text(payment.status),
+                        trailing: Text(payment.dueDate.toString().substring(0, 10)),
+                      )),
+                      if (payments.length > 3)
+                        Text('... и еще ${payments.length - 3} платежей'),
+                    ],
+                  ),
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class CreditsPage extends StatelessWidget {
-  const CreditsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Кредиты'),
-      ),
-      body: const Center(
-        child: Text(
-          'Страница кредитов',
-          style: TextStyle(fontSize: 20),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Добавить кредит
-        },
-        backgroundColor: const Color(0xFFFF8C00),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-    );
-  }
-}
-
-class PaymentsPage extends StatelessWidget {
-  const PaymentsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Платежи'),
-      ),
-      body: const Center(
-        child: Text(
-          'Страница платежей',
-          style: TextStyle(fontSize: 20),
+            
+            if (organizations.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Организации (${organizations.length})',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      ...organizations.take(3).map((org) => ListTile(
+                        title: Text(org.displayName),
+                        subtitle: Text(org.type),
+                        trailing: Text(org.bic ?? ''),
+                      )),
+                      if (organizations.length > 3)
+                        Text('... и еще ${organizations.length - 3} организаций'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Добавить платеж
-        },
-        backgroundColor: const Color(0xFFFF8C00),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-    );
-  }
-}
-
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Настройки'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ListTile(
-            leading: const Icon(Icons.notifications, color: Color(0xFFFF8C00)),
-            title: const Text('Уведомления'),
-            subtitle: const Text('Настройка уведомлений'),
-            onTap: () {
-              // Настройки уведомлений
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.security, color: Color(0xFFFF8C00)),
-            title: const Text('Безопасность'),
-            subtitle: const Text('PIN-код и биометрия'),
-            onTap: () {
-              // Настройки безопасности
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.backup, color: Color(0xFFFF8C00)),
-            title: const Text('Резервные копии'),
-            subtitle: const Text('Экспорт и импорт данных'),
-            onTap: () {
-              // Резервные копии
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.info, color: Color(0xFFFF8C00)),
-            title: const Text('О приложении'),
-            subtitle: const Text('Версия 1.0.0'),
-            onTap: () {
-              // О приложении
-            },
-          ),
-        ],
+        onPressed: _loadAllData,
+        tooltip: 'Обновить данные',
+        child: const Icon(Icons.refresh),
       ),
     );
   }

@@ -1,149 +1,206 @@
-// Simple Payment Repository without Isar for testing
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/payment.dart';
 import '../models/credit.dart';
+import '../../core/services/hive_provider.dart';
 
 class PaymentRepository {
-  static final List<Payment> _payments = [];
-  static int _nextId = 1;
+  final Box<Payment> _paymentsBox = HiveProvider.paymentsBox;
+  final Box<Credit> _creditsBox = HiveProvider.creditsBox;
 
   // Get all payments
   Future<List<Payment>> getAllPayments() async {
-    return List.from(_payments);
-  }
-
-  // Get payment by ID
-  Future<Payment?> getPaymentById(int id) async {
-    try {
-      return _payments.firstWhere((payment) => payment.id == id);
-    } catch (e) {
-      return null;
-    }
+    return _paymentsBox.values.toList();
   }
 
   // Get payments by credit ID
   Future<List<Payment>> getPaymentsByCreditId(int creditId) async {
-    return _payments.where((payment) => payment.creditId == creditId).toList();
+    return _paymentsBox.values.where((payment) => payment.creditId == creditId).toList();
   }
 
-  // Add new payment
-  Future<void> addPayment(Payment payment) async {
-    final newPayment = Payment(
-      id: _nextId++,
-      amount: payment.amount,
-      dueDate: payment.dueDate,
-      paidDate: payment.paidDate,
-      status: payment.status,
-      type: payment.type,
-      createdAt: DateTime.now(),
-      creditId: payment.creditId,
-    );
-    _payments.add(newPayment);
+  // Get payments by status
+  Future<List<Payment>> getPaymentsByStatus(String status) async {
+    return _paymentsBox.values.where((payment) => payment.status == status).toList();
   }
 
-  // Update payment
-  Future<void> updatePayment(Payment payment) async {
-    final index = _payments.indexWhere((p) => p.id == payment.id);
-    if (index != -1) {
-      _payments[index] = payment;
-    }
-  }
-
-  // Delete payment
-  Future<void> deletePayment(int id) async {
-    _payments.removeWhere((payment) => payment.id == id);
-  }
-
-  // Get upcoming payments
-  Future<List<Payment>> getUpcomingPayments() async {
-    final now = DateTime.now();
-    return _payments.where((payment) => 
-      payment.status == PaymentStatus.pending && 
-      payment.dueDate.isAfter(now)
-    ).toList();
+  // Get payments by date range
+  Future<List<Payment>> getPaymentsByDateRange(DateTime startDate, DateTime endDate) async {
+    return _paymentsBox.values
+        .where((payment) => payment.dueDate.isAfter(startDate) && payment.dueDate.isBefore(endDate))
+        .toList();
   }
 
   // Get overdue payments
   Future<List<Payment>> getOverduePayments() async {
     final now = DateTime.now();
-    return _payments.where((payment) => 
-      payment.status == PaymentStatus.pending && 
-      payment.dueDate.isBefore(now)
-    ).toList();
+    return _paymentsBox.values
+        .where((payment) => payment.status == 'pending' && payment.dueDate.isBefore(now))
+        .toList();
+  }
+
+  // Get upcoming payments (next 30 days)
+  Future<List<Payment>> getUpcomingPayments() async {
+    final now = DateTime.now();
+    final thirtyDaysFromNow = now.add(const Duration(days: 30));
+    return _paymentsBox.values
+        .where((payment) => 
+            payment.status == 'pending' && 
+            payment.dueDate.isAfter(now) && 
+            payment.dueDate.isBefore(thirtyDaysFromNow))
+        .toList();
+  }
+
+  // Get payment by ID
+  Future<Payment?> getPaymentById(String id) async {
+    return _paymentsBox.get(id);
+  }
+
+  // Add new payment
+  Future<String> addPayment(Payment payment) async {
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    await _paymentsBox.put(id, payment);
+    return id;
+  }
+
+  // Update payment
+  Future<void> updatePayment(String id, Payment payment) async {
+    await _paymentsBox.put(id, payment);
+  }
+
+  // Delete payment
+  Future<void> deletePayment(String id) async {
+    await _paymentsBox.delete(id);
   }
 
   // Mark payment as paid
-  Future<void> markPaymentAsPaid(int paymentId) async {
+  Future<void> markPaymentAsPaid(String paymentId, double amount) async {
     final payment = await getPaymentById(paymentId);
     if (payment != null) {
-      final updatedPayment = Payment(
-        id: payment.id,
-        amount: payment.amount,
-        dueDate: payment.dueDate,
+      final updatedPayment = payment.copyWith(
+        status: amount >= payment.amount ? 'paid' : 'partial',
         paidDate: DateTime.now(),
-        status: PaymentStatus.paid,
-        type: payment.type,
-        createdAt: payment.createdAt,
-        creditId: payment.creditId,
       );
-      await updatePayment(updatedPayment);
-    }
-  }
+      
+      await updatePayment(paymentId, updatedPayment);
 
-  // Mark payment as partial
-  Future<void> markPaymentAsPartial(int paymentId, double partialAmount) async {
-    final payment = await getPaymentById(paymentId);
-    if (payment != null) {
-      final updatedPayment = Payment(
-        id: payment.id,
-        amount: payment.amount,
-        dueDate: payment.dueDate,
-        paidDate: DateTime.now(),
-        status: PaymentStatus.partial,
-        type: PaymentType.partial,
-        createdAt: payment.createdAt,
-        creditId: payment.creditId,
-      );
-      await updatePayment(updatedPayment);
+      // Update credit balance
+      await _updateCreditBalance(payment.creditId, amount);
     }
   }
 
   // Mark payment as missed
-  Future<void> markPaymentAsMissed(int paymentId) async {
+  Future<void> markPaymentAsMissed(String paymentId) async {
     final payment = await getPaymentById(paymentId);
     if (payment != null) {
-      final updatedPayment = Payment(
-        id: payment.id,
-        amount: payment.amount,
-        dueDate: payment.dueDate,
-        paidDate: payment.paidDate,
-        status: PaymentStatus.overdue,
-        type: payment.type,
-        createdAt: payment.createdAt,
-        creditId: payment.creditId,
-      );
-      await updatePayment(updatedPayment);
+      final updatedPayment = payment.copyWith(status: 'missed');
+      await updatePayment(paymentId, updatedPayment);
     }
   }
 
-  // Create next payment for credit
-  Future<void> createNextPayment(Credit credit) async {
-    final nextPayment = Payment(
-      id: _nextId++,
-      amount: credit.monthlyPayment,
-      dueDate: credit.nextPaymentDate,
-      status: PaymentStatus.pending,
-      type: PaymentType.regular,
-      createdAt: DateTime.now(),
-      creditId: credit.id,
-    );
-    _payments.add(nextPayment);
+  // Get total paid amount for credit
+  Future<double> getTotalPaidForCredit(int creditId) async {
+    final payments = await getPaymentsByCreditId(creditId);
+    return payments
+        .where((payment) => payment.status == 'paid' || payment.status == 'partial')
+        .fold<double>(0.0, (sum, payment) => sum + payment.amount);
   }
 
-  // Get payments for credit with status
-  Future<List<Payment>> getPaymentsByCreditIdAndStatus(int creditId, PaymentStatus status) async {
-    return _payments.where((payment) => 
-      payment.creditId == creditId && 
-      payment.status == status
-    ).toList();
+  // Get total pending amount for credit
+  Future<double> getTotalPendingForCredit(int creditId) async {
+    final payments = await getPaymentsByCreditId(creditId);
+    return payments
+        .where((payment) => payment.status == 'pending')
+        .fold<double>(0.0, (sum, payment) => sum + payment.amount);
+  }
+
+  // Get payments statistics
+  Future<Map<String, dynamic>> getPaymentStatistics() async {
+    final allPayments = await getAllPayments();
+    
+    final totalPayments = allPayments.length;
+    final paidPayments = allPayments.where((p) => p.status == 'paid').length;
+    final pendingPayments = allPayments.where((p) => p.status == 'pending').length;
+    final missedPayments = allPayments.where((p) => p.status == 'missed').length;
+    final partialPayments = allPayments.where((p) => p.status == 'partial').length;
+
+    final totalAmount = allPayments.fold(0.0, (sum, p) => sum + p.amount);
+    final paidAmount = allPayments
+        .where((p) => p.status == 'paid')
+        .fold(0.0, (sum, p) => sum + p.amount);
+
+    return {
+      'totalPayments': totalPayments,
+      'paidPayments': paidPayments,
+      'pendingPayments': pendingPayments,
+      'missedPayments': missedPayments,
+      'partialPayments': partialPayments,
+      'totalAmount': totalAmount,
+      'paidAmount': paidAmount,
+      'paymentRate': totalPayments > 0 ? (paidPayments / totalPayments) * 100 : 0.0,
+    };
+  }
+
+  // Update credit balance after payment
+  Future<void> _updateCreditBalance(int creditId, double paymentAmount) async {
+    // Find credit by creditId (we need to search through all credits)
+    final credits = _creditsBox.values.where((credit) => 
+        credit.key == creditId.toString()).toList();
+    
+    if (credits.isNotEmpty) {
+      final credit = credits.first;
+      final newBalance = credit.currentBalance - paymentAmount;
+      final updatedCredit = credit.copyWith(
+        currentBalance: newBalance > 0 ? newBalance : 0,
+        status: newBalance <= 0 ? 'closed' : credit.status,
+      );
+      
+      // Find the credit key and update
+      final creditKey = _creditsBox.keys.firstWhere(
+        (key) => _creditsBox.get(key)?.key == creditId.toString(),
+        orElse: () => null,
+      );
+      
+      if (creditKey != null) {
+        await _creditsBox.put(creditKey, updatedCredit);
+      }
+    }
+  }
+
+  // Get payments for today
+  Future<List<Payment>> getPaymentsForToday() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    
+    return _paymentsBox.values
+        .where((payment) => 
+            payment.dueDate.isAfter(today) && 
+            payment.dueDate.isBefore(tomorrow))
+        .toList();
+  }
+
+  // Get payments for this week
+  Future<List<Payment>> getPaymentsForThisWeek() async {
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 7));
+    
+    return _paymentsBox.values
+        .where((payment) => 
+            payment.dueDate.isAfter(startOfWeek) && 
+            payment.dueDate.isBefore(endOfWeek))
+        .toList();
+  }
+
+  // Get payments for this month
+  Future<List<Payment>> getPaymentsForThisMonth() async {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 1);
+    
+    return _paymentsBox.values
+        .where((payment) => 
+            payment.dueDate.isAfter(startOfMonth) && 
+            payment.dueDate.isBefore(endOfMonth))
+        .toList();
   }
 }

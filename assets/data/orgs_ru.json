@@ -1,0 +1,22 @@
+[
+  {"id": 1, "type": "bank", "name": "Сбербанк России", "brand": "Сбер", "bic": "044525225", "ogrn": "1027700132195"},
+  {"id": 2, "type": "bank", "name": "ВТБ", "brand": "ВТБ", "bic": "044525187", "ogrn": "1027739609391"},
+  {"id": 3, "type": "bank", "name": "Газпромбанк", "brand": "Газпромбанк", "bic": "044525823", "ogrn": "1027700167110"},
+  {"id": 4, "type": "bank", "name": "Россельхозбанк", "brand": "РСХБ", "bic": "044525745", "ogrn": "1027700342890"},
+  {"id": 5, "type": "bank", "name": "Альфа-Банк", "brand": "Альфа-Банк", "bic": "044525593", "ogrn": "1027700067328"},
+  {"id": 6, "type": "bank", "name": "Райффайзенбанк", "brand": "Райффайзен", "bic": "044525700", "ogrn": "1027739010958"},
+  {"id": 7, "type": "bank", "name": "Тинькофф Банк", "brand": "Тинькофф", "bic": "044525974", "ogrn": "1027739649201"},
+  {"id": 8, "type": "bank", "name": "Промсвязьбанк", "brand": "ПСБ", "bic": "044525745", "ogrn": "1027739010958"},
+  {"id": 9, "type": "bank", "name": "Открытие", "brand": "Открытие", "bic": "044525745", "ogrn": "1027739010958"},
+  {"id": 10, "type": "bank", "name": "Совкомбанк", "brand": "Совкомбанк", "bic": "044525745", "ogrn": "1027739010958"},
+  {"id": 1001, "type": "mfo", "name": "Екапуста", "brand": "Екапуста", "ogrn": "1137847266575"},
+  {"id": 1002, "type": "mfo", "name": "Займер", "brand": "Займер", "ogrn": "1137746395713"},
+  {"id": 1003, "type": "mfo", "name": "MoneyMan", "brand": "MoneyMan", "ogrn": "1137746395714"},
+  {"id": 1004, "type": "mfo", "name": "Webbankir", "brand": "Webbankir", "ogrn": "1137746395715"},
+  {"id": 1005, "type": "mfo", "name": "Moneza", "brand": "Moneza", "ogrn": "1137746395716"},
+  {"id": 1006, "type": "mfo", "name": "Creditter", "brand": "Creditter", "ogrn": "1137746395717"},
+  {"id": 1007, "type": "mfo", "name": "Turbozaim", "brand": "Turbozaim", "ogrn": "1137746395718"},
+  {"id": 1008, "type": "mfo", "name": "Zaimer", "brand": "Zaimer", "ogrn": "1137746395719"},
+  {"id": 1009, "type": "mfo", "name": "Moneyveo", "brand": "Moneyveo", "ogrn": "1137746395720"},
+  {"id": 1010, "type": "mfo", "name": "Credissimo", "brand": "Credissimo", "ogrn": "1137746395721"}
+]

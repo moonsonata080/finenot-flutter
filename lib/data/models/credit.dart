@@ -1,73 +1,75 @@
-// Simple Credit model without Isar for testing
-class Credit {
-  int id;
+import 'package:hive/hive.dart';
+
+part 'credit.g.dart';
+
+@HiveType(typeId: 0)
+class Credit extends HiveObject {
+  @HiveField(0)
+  int? orgId; // Reference to bank/MFO
+
+  @HiveField(1)
   String name;
-  String? bankName;
-  DateTime createdAt;
+
+  @HiveField(2)
+  String type; // consumer, mortgage, micro, card
+
+  @HiveField(3)
   double initialAmount;
+
+  @HiveField(4)
   double currentBalance;
+
+  @HiveField(5)
   double monthlyPayment;
+
+  @HiveField(6)
   double interestRate;
+
+  @HiveField(7)
   DateTime nextPaymentDate;
-  CreditStatus status;
-  CreditType type;
+
+  @HiveField(8)
+  String status; // active, closed, overdue
+
+  @HiveField(9)
+  DateTime createdAt;
 
   Credit({
-    required this.id,
+    this.orgId,
     required this.name,
-    this.bankName,
-    required this.createdAt,
+    required this.type,
     required this.initialAmount,
     required this.currentBalance,
     required this.monthlyPayment,
     required this.interestRate,
     required this.nextPaymentDate,
     required this.status,
-    required this.type,
+    required this.createdAt,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'bankName': bankName,
-      'createdAt': createdAt.toIso8601String(),
-      'initialAmount': initialAmount,
-      'currentBalance': currentBalance,
-      'monthlyPayment': monthlyPayment,
-      'interestRate': interestRate,
-      'nextPaymentDate': nextPaymentDate.toIso8601String(),
-      'status': status.name,
-      'type': type.name,
-    };
-  }
-
-  factory Credit.fromJson(Map<String, dynamic> json) {
+  Credit copyWith({
+    int? orgId,
+    String? name,
+    String? type,
+    double? initialAmount,
+    double? currentBalance,
+    double? monthlyPayment,
+    double? interestRate,
+    DateTime? nextPaymentDate,
+    String? status,
+    DateTime? createdAt,
+  }) {
     return Credit(
-      id: json['id'],
-      name: json['name'],
-      bankName: json['bankName'],
-      createdAt: DateTime.parse(json['createdAt']),
-      initialAmount: json['initialAmount'].toDouble(),
-      currentBalance: json['currentBalance'].toDouble(),
-      monthlyPayment: json['monthlyPayment'].toDouble(),
-      interestRate: json['interestRate'].toDouble(),
-      nextPaymentDate: DateTime.parse(json['nextPaymentDate']),
-      status: CreditStatus.values.firstWhere((e) => e.name == json['status']),
-      type: CreditType.values.firstWhere((e) => e.name == json['type']),
+      orgId: orgId ?? this.orgId,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      initialAmount: initialAmount ?? this.initialAmount,
+      currentBalance: currentBalance ?? this.currentBalance,
+      monthlyPayment: monthlyPayment ?? this.monthlyPayment,
+      interestRate: interestRate ?? this.interestRate,
+      nextPaymentDate: nextPaymentDate ?? this.nextPaymentDate,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
-}
-
-enum CreditStatus {
-  active,
-  paid,
-  overdue,
-  defaulted,
-}
-
-enum CreditType {
-  consumer,
-  mortgage,
-  microloan,
 }

@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/text_styles.dart';
-import '../../core/services/auth_lock_service.dart';
-import '../../core/services/notification_service.dart';
-import '../controllers/settings_controller.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -55,16 +52,8 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
       // Wait for animations to complete
       await Future.delayed(const Duration(seconds: 2));
 
-      // Check if authentication is required
-      final isLockEnabled = await AuthLockService.isLockEnabled();
-      
-      if (isLockEnabled) {
-        // Navigate to lock page
-        Get.offAllNamed('/lock');
-      } else {
-        // Navigate directly to home
-        Get.offAllNamed('/home');
-      }
+      // Navigate directly to home (skip authentication for now)
+      Get.offAllNamed('/home');
     } catch (e) {
       print('Error during app initialization: $e');
       // Navigate to home even if there's an error

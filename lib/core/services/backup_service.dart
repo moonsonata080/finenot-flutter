@@ -1,213 +1,225 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import '../../data/models/credit.dart';
 import '../../data/models/payment.dart';
 import '../../data/models/settings.dart';
-import '../../data/repositories/settings_repository.dart';
-import '../../data/repositories/credit_repository.dart';
-import '../../data/repositories/payment_repository.dart';
+import '../../data/models/org.dart';
+import 'isar_provider.dart';
 
 class BackupService {
   static const String _backupFileName = 'finenot_backup';
 
-  // Export all data to JSON
-  static Future<Map<String, dynamic>> exportData() async {
-    try {
-      final creditsRepo = CreditRepository();
-      final paymentsRepo = PaymentRepository();
-      final settingsRepo = SettingsRepository();
+  // Export data to JSON
+  static Future<String> exportData() async {
+    final isar = IsarProvider.isar;
+    
+    // Get all data
+    final credits = await isar.credits.where().findAll();
+    final payments = await isar.payments.where().findAll();
+    final settings = await isar.settingss.where().findAll();
+    final orgs = await isar.orgs.where().findAll();
 
-      final credits = await creditsRepo.getAllCredits();
-      final payments = await paymentsRepo.getAllPayments();
-      final settings = await settingsRepo.getSettings();
+    // Create backup object
+    final backup = {
+      'version': '1.0.0',
+      'exportDate': DateTime.now().toIso8601String(),
+      'credits': credits.map((c) => _creditToJson(c)).toList(),
+      'payments': payments.map((p) => _paymentToJson(p)).toList(),
+      'settings': settings.isNotEmpty ? _settingsToJson(settings.first) : null,
+      'orgs': orgs.map((o) => _orgToJson(o)).toList(),
+    };
 
-      return {
-        'version': '1.0.0',
-        'exportDate': DateTime.now().toIso8601String(),
-        'credits': credits.map((c) => c.toJson()).toList(),
-        'payments': payments.map((p) => p.toJson()).toList(),
-        'settings': settings.toJson(),
-      };
-    } catch (e) {
-      print('Error exporting data: $e');
-      rethrow;
-    }
-  }
-
-  // Export to file and share
-  static Future<void> exportToFile() async {
-    try {
-      final jsonData = await exportData();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${_backupFileName}_$timestamp.json';
-
-      // Get temporary directory
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/$fileName');
-
-      // Write data to file
-      await file.writeAsString(jsonEncode(jsonData));
-
-      // Share file
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'FinEnot Backup - $fileName',
-      );
-    } catch (e) {
-      throw Exception('Failed to export data: $e');
-    }
+    return jsonEncode(backup);
   }
 
   // Import data from JSON
-  static Future<bool> importData(Map<String, dynamic> data) async {
+  static Future<bool> importData(String jsonData) async {
     try {
-      final creditsRepo = CreditRepository();
-      final paymentsRepo = PaymentRepository();
-      final settingsRepo = SettingsRepository();
+      final backup = jsonDecode(jsonData) as Map<String, dynamic>;
+      
+      // Validate backup format
+      if (!_validateBackup(backup)) {
+        throw Exception('Invalid backup format');
+      }
 
-      // Import credits
-      if (data['credits'] != null) {
-        final creditsJson = data['credits'] as List;
-        for (final creditJson in creditsJson) {
-          final credit = Credit.fromJson(creditJson);
-          await creditsRepo.addCredit(credit);
+      final isar = IsarProvider.isar;
+      
+      await isar.writeTxn(() async {
+        // Clear existing data
+        await isar.clear();
+        
+        // Import orgs first (they are referenced by credits)
+        if (backup['orgs'] != null) {
+          final orgs = (backup['orgs'] as List)
+              .map((o) => _orgFromJson(o as Map<String, dynamic>))
+              .toList();
+          await isar.orgs.putAll(orgs);
         }
-      }
-
-      // Import payments
-      if (data['payments'] != null) {
-        final paymentsJson = data['payments'] as List;
-        for (final paymentJson in paymentsJson) {
-          final payment = Payment.fromJson(paymentJson);
-          await paymentsRepo.addPayment(payment);
+        
+        // Import credits
+        if (backup['credits'] != null) {
+          final credits = (backup['credits'] as List)
+              .map((c) => _creditFromJson(c as Map<String, dynamic>))
+              .toList();
+          await isar.credits.putAll(credits);
         }
-      }
-
-      // Import settings
-      if (data['settings'] != null) {
-        final settings = Settings.fromJson(data['settings']);
-        await settingsRepo.updateSettings(settings);
-      }
+        
+        // Import payments
+        if (backup['payments'] != null) {
+          final payments = (backup['payments'] as List)
+              .map((p) => _paymentFromJson(p as Map<String, dynamic>))
+              .toList();
+          await isar.payments.putAll(payments);
+        }
+        
+        // Import settings
+        if (backup['settings'] != null) {
+          final settings = _settingsFromJson(backup['settings'] as Map<String, dynamic>);
+          await isar.settingss.put(settings);
+        }
+      });
 
       return true;
     } catch (e) {
-      print('Error importing data: $e');
+      print('Import error: $e');
       return false;
     }
   }
 
-  // Import from file picker
-  static Future<void> importFromFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.isNotEmpty) {
-        final file = File(result.files.first.path!);
-        final jsonData = await file.readAsString();
-        final data = jsonDecode(jsonData) as Map<String, dynamic>;
-        await importData(data);
-      }
-    } catch (e) {
-      throw Exception('Failed to import from file: $e');
-    }
+  // Save backup to file and share
+  static Future<void> saveAndShareBackup() async {
+    final jsonData = await exportData();
+    final timestamp = DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now());
+    final fileName = '${_backupFileName}_$timestamp.json';
+    
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/$fileName');
+    
+    await file.writeAsString(jsonData);
+    
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      text: 'FinEnot backup - $timestamp',
+    );
   }
 
-  // Validate backup file
-  static Future<bool> validateBackupFile(String jsonData) async {
-    try {
-      final data = jsonDecode(jsonData) as Map<String, dynamic>;
-      
-      // Check required fields
-      if (!data.containsKey('version') ||
-          !data.containsKey('credits') ||
-          !data.containsKey('payments') ||
-          !data.containsKey('settings')) {
-        return false;
-      }
-
-      // Validate version
-      final version = data['version'] as String;
-      if (!version.startsWith('1.')) {
-        return false;
-      }
-
-      // Validate data types
-      final credits = data['credits'] as List<dynamic>?;
-      final payments = data['payments'] as List<dynamic>?;
-      final settings = data['settings'] as Map<String, dynamic>?;
-
-      if (credits == null || payments == null || settings == null) {
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      return false;
-    }
+  // Load backup from file
+  static Future<String?> loadBackupFromFile() async {
+    // This would typically use file_picker to select a file
+    // For now, return null as this needs UI integration
+    return null;
   }
 
-  // Get backup info
-  static Future<Map<String, dynamic>> getBackupInfo(String jsonData) async {
-    try {
-      final data = jsonDecode(jsonData) as Map<String, dynamic>;
-      
-      final credits = data['credits'] as List<dynamic>? ?? [];
-      final payments = data['payments'] as List<dynamic>? ?? [];
-      final exportDate = data['exportDate'] as String?;
-      final version = data['version'] as String?;
-
-      return {
-        'version': version,
-        'exportDate': exportDate != null ? DateTime.parse(exportDate) : null,
-        'creditsCount': credits.length,
-        'paymentsCount': payments.length,
-        'isValid': true,
-      };
-    } catch (e) {
-      return {
-        'isValid': false,
-        'error': e.toString(),
-      };
-    }
+  // Validation helpers
+  static bool _validateBackup(Map<String, dynamic> backup) {
+    return backup.containsKey('version') && 
+           backup.containsKey('exportDate') &&
+           backup.containsKey('credits') &&
+           backup.containsKey('payments');
   }
 
-  // Create backup summary
-  static Future<String> createBackupSummary() async {
-    try {
-      final creditsRepo = CreditRepository();
-      final paymentsRepo = PaymentRepository();
-      
-      final credits = await creditsRepo.getAllCredits();
-      final payments = await paymentsRepo.getAllPayments();
-      
-      final activeCredits = credits.where((c) => c.status == CreditStatus.active).length;
-      final pendingPayments = payments.where((p) => p.status == PaymentStatus.pending).length;
+  // JSON conversion helpers
+  static Map<String, dynamic> _creditToJson(Credit credit) {
+    return {
+      'id': credit.id,
+      'orgId': credit.orgId,
+      'name': credit.name,
+      'type': credit.type,
+      'initialAmount': credit.initialAmount,
+      'currentBalance': credit.currentBalance,
+      'monthlyPayment': credit.monthlyPayment,
+      'interestRate': credit.interestRate,
+      'nextPaymentDate': credit.nextPaymentDate.toIso8601String(),
+      'status': credit.status,
+      'createdAt': credit.createdAt.toIso8601String(),
+    };
+  }
 
-      return '''
-Backup Summary:
-- Total Credits: ${credits.length}
-- Active Credits: $activeCredits
-- Total Payments: ${payments.length}
-- Pending Payments: $pendingPayments
-- Export Date: ${DateTime.now().toString()}
-''';
-    } catch (e) {
-      return '''
-Backup Summary:
-- Total Credits: 0
-- Active Credits: 0
-- Total Payments: 0
-- Pending Payments: 0
-- Export Date: ${DateTime.now().toString()}
-- Error: $e
-''';
-    }
+  static Credit _creditFromJson(Map<String, dynamic> json) {
+    return Credit(
+      id: json['id'] as Id,
+      orgId: json['orgId'] as int?,
+      name: json['name'] as String,
+      type: json['type'] as String,
+      initialAmount: json['initialAmount'] as double,
+      currentBalance: json['currentBalance'] as double,
+      monthlyPayment: json['monthlyPayment'] as double,
+      interestRate: json['interestRate'] as double,
+      nextPaymentDate: DateTime.parse(json['nextPaymentDate'] as String),
+      status: json['status'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  static Map<String, dynamic> _paymentToJson(Payment payment) {
+    return {
+      'id': payment.id,
+      'creditId': payment.creditId,
+      'amount': payment.amount,
+      'dueDate': payment.dueDate.toIso8601String(),
+      'paidDate': payment.paidDate?.toIso8601String(),
+      'status': payment.status,
+      'createdAt': payment.createdAt.toIso8601String(),
+    };
+  }
+
+  static Payment _paymentFromJson(Map<String, dynamic> json) {
+    return Payment(
+      id: json['id'] as Id,
+      creditId: json['creditId'] as int,
+      amount: json['amount'] as double,
+      dueDate: DateTime.parse(json['dueDate'] as String),
+      paidDate: json['paidDate'] != null ? DateTime.parse(json['paidDate'] as String) : null,
+      status: json['status'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  static Map<String, dynamic> _settingsToJson(Settings settings) {
+    return {
+      'id': settings.id,
+      'themeMode': settings.themeMode,
+      'notifyAheadHours': settings.notifyAheadHours,
+      'lockEnabled': settings.lockEnabled,
+      'lockType': settings.lockType,
+      'monthlyIncome': settings.monthlyIncome,
+    };
+  }
+
+  static Settings _settingsFromJson(Map<String, dynamic> json) {
+    return Settings(
+      themeMode: json['themeMode'] as String,
+      notifyAheadHours: json['notifyAheadHours'] as int,
+      lockEnabled: json['lockEnabled'] as bool,
+      lockType: json['lockType'] as String,
+      monthlyIncome: json['monthlyIncome'] as double?,
+    );
+  }
+
+  static Map<String, dynamic> _orgToJson(Org org) {
+    return {
+      'id': org.id,
+      'name': org.name,
+      'type': org.type,
+      'bic': org.bic,
+      'ogrn': org.ogrn,
+      'brand': org.brand,
+      'searchIndex': org.searchIndex,
+    };
+  }
+
+  static Org _orgFromJson(Map<String, dynamic> json) {
+    return Org(
+      id: json['id'] as Id,
+      name: json['name'] as String,
+      type: json['type'] as String,
+      bic: json['bic'] as String?,
+      ogrn: json['ogrn'] as String?,
+      brand: json['brand'] as String?,
+      searchIndex: json['searchIndex'] as String,
+    );
   }
 }

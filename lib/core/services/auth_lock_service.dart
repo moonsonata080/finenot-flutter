@@ -1,11 +1,12 @@
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter/services.dart';
-import '../../data/repositories/settings_repository.dart';
-import '../../data/models/settings.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthLockService {
   static final LocalAuthentication _localAuth = LocalAuthentication();
-  static final SettingsRepository _settingsRepo = SettingsRepository();
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  
+  static const String _pinKey = 'app_pin';
+  static const String _lockTypeKey = 'lock_type';
 
   // Check if device supports biometric authentication
   static Future<bool> isBiometricAvailable() async {
@@ -13,7 +14,7 @@ class AuthLockService {
       final isAvailable = await _localAuth.canCheckBiometrics;
       final isDeviceSupported = await _localAuth.isDeviceSupported();
       return isAvailable && isDeviceSupported;
-    } on PlatformException catch (e) {
+    } catch (e) {
       return false;
     }
   }
@@ -22,169 +23,74 @@ class AuthLockService {
   static Future<List<BiometricType>> getAvailableBiometrics() async {
     try {
       return await _localAuth.getAvailableBiometrics();
-    } on PlatformException catch (e) {
+    } catch (e) {
       return [];
     }
   }
 
-  // Check if lock is enabled
-  static Future<bool> isLockEnabled() async {
-    final settings = await _settingsRepo.getSettings();
-    return settings.lockEnabled;
+  // Set PIN code
+  static Future<void> setPin(String pin) async {
+    await _secureStorage.write(key: _pinKey, value: pin);
+    await _secureStorage.write(key: _lockTypeKey, value: 'pin');
   }
 
-  // Check if PIN is set
-  static Future<bool> isPinSet() async {
-    final pin = await _settingsRepo.getPin();
-    return pin != null && pin.isNotEmpty;
+  // Set biometric authentication
+  static Future<void> setBiometric() async {
+    await _secureStorage.delete(key: _pinKey);
+    await _secureStorage.write(key: _lockTypeKey, value: 'biometric');
   }
 
-  // Check if biometric is enabled
-  static Future<bool> isBiometricEnabled() async {
-    return await _settingsRepo.isBiometricEnabled();
+  // Disable lock
+  static Future<void> disableLock() async {
+    await _secureStorage.delete(key: _pinKey);
+    await _secureStorage.delete(key: _lockTypeKey);
+  }
+
+  // Get current lock type
+  static Future<String> getLockType() async {
+    return await _secureStorage.read(key: _lockTypeKey) ?? 'none';
   }
 
   // Authenticate with PIN
   static Future<bool> authenticateWithPin(String pin) async {
-    final storedPin = await _settingsRepo.getPin();
+    final storedPin = await _secureStorage.read(key: _pinKey);
     return storedPin == pin;
   }
 
   // Authenticate with biometric
   static Future<bool> authenticateWithBiometric() async {
     try {
-      final isAvailable = await isBiometricAvailable();
-      if (!isAvailable) return false;
-
-      final isEnabled = await isBiometricEnabled();
-      if (!isEnabled) return false;
-
-      final availableBiometrics = await getAvailableBiometrics();
-      if (availableBiometrics.isEmpty) return false;
-
-      final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Authenticate to access FinEnot',
+      return await _localAuth.authenticate(
+        localizedReason: 'Подтвердите личность для входа в приложение',
         options: const AuthenticationOptions(
           biometricOnly: true,
           stickyAuth: true,
         ),
       );
-
-      return authenticated;
-    } on PlatformException catch (e) {
+    } catch (e) {
       return false;
     }
-  }
-
-  // Set PIN
-  static Future<void> setPin(String pin) async {
-    await _settingsRepo.setPin(pin);
-    await _settingsRepo.updateLockType(AppLockType.pin);
-  }
-
-  // Remove PIN
-  static Future<void> removePin() async {
-    await _settingsRepo.removePin();
-    await _settingsRepo.updateLockType(AppLockType.none);
-  }
-
-  // Enable biometric authentication
-  static Future<bool> enableBiometric() async {
-    try {
-      final isAvailable = await isBiometricAvailable();
-      if (!isAvailable) return false;
-
-      final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Enable biometric authentication for FinEnot',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-          stickyAuth: true,
-        ),
-      );
-
-      if (authenticated) {
-        await _settingsRepo.setBiometricEnabled(true);
-        await _settingsRepo.updateLockType(AppLockType.biometric);
-        return true;
-      }
-
-      return false;
-    } on PlatformException catch (e) {
-      return false;
-    }
-  }
-
-  // Disable biometric authentication
-  static Future<void> disableBiometric() async {
-    await _settingsRepo.setBiometricEnabled(false);
-    await _settingsRepo.updateLockType(AppLockType.none);
   }
 
   // Authenticate based on current lock type
   static Future<bool> authenticate() async {
-    final settings = await _settingsRepo.getSettings();
+    final lockType = await getLockType();
     
-    if (!settings.lockEnabled) return true;
-
-    switch (settings.lockType) {
-      case AppLockType.pin:
-        // PIN authentication should be handled by UI
+    switch (lockType) {
+      case 'pin':
+        // This should be handled by the UI that calls authenticateWithPin
         return false;
-      case AppLockType.biometric:
+      case 'biometric':
         return await authenticateWithBiometric();
-      case AppLockType.none:
+      case 'none':
       default:
         return true;
     }
   }
 
-  // Check if authentication is required
-  static Future<bool> isAuthenticationRequired() async {
-    final settings = await _settingsRepo.getSettings();
-    return settings.lockEnabled && settings.lockType != AppLockType.none;
-  }
-
-  // Get current lock type
-  static Future<AppLockType> getCurrentLockType() async {
-    final settings = await _settingsRepo.getSettings();
-    return settings.lockType;
-  }
-
-  // Validate PIN format (4-6 digits)
-  static bool isValidPin(String pin) {
-    return pin.length >= 4 && pin.length <= 6 && int.tryParse(pin) != null;
-  }
-
-  // Get biometric type name
-  static String getBiometricTypeName(BiometricType type) {
-    switch (type) {
-      case BiometricType.face:
-        return 'Face ID';
-      case BiometricType.fingerprint:
-        return 'Fingerprint';
-      case BiometricType.iris:
-        return 'Iris';
-      default:
-        return 'Biometric';
-    }
-  }
-
-  // Get available biometric types as strings
-  static Future<List<String>> getAvailableBiometricNames() async {
-    final biometrics = await getAvailableBiometrics();
-    return biometrics.map((type) => getBiometricTypeName(type)).toList();
-  }
-
-  // Check if device has any biometric authentication
-  static Future<bool> hasAnyBiometric() async {
-    final biometrics = await getAvailableBiometrics();
-    return biometrics.isNotEmpty;
-  }
-
-  // Reset all authentication settings
-  static Future<void> resetAuthentication() async {
-    await _settingsRepo.removePin();
-    await _settingsRepo.setBiometricEnabled(false);
-    await _settingsRepo.updateLockEnabled(false);
+  // Check if lock is enabled
+  static Future<bool> isLockEnabled() async {
+    final lockType = await getLockType();
+    return lockType != 'none';
   }
 }

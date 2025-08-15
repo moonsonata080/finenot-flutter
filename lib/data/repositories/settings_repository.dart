@@ -1,127 +1,198 @@
-// Simple Settings Repository without Isar for testing
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/settings.dart';
+import '../../core/services/hive_provider.dart';
 
 class SettingsRepository {
-  static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
-  static Settings? _cachedSettings;
+  final Box<Settings> _settingsBox = HiveProvider.settingsBox;
+  static const String _defaultSettingsKey = 'default_settings';
 
-  static const String _pinKey = 'app_pin';
-  static const String _biometricKey = 'biometric_enabled';
-
-  // Settings management
+  // Get settings (singleton pattern)
   Future<Settings> getSettings() async {
-    if (_cachedSettings != null) {
-      return _cachedSettings!;
+    final settings = _settingsBox.get(_defaultSettingsKey);
+    if (settings != null) {
+      return settings;
     }
-
-    // Return default settings for now
-    _cachedSettings = Settings(
-      id: 1,
-      themeMode: AppThemeMode.system,
-      lockEnabled: false,
-      lockType: AppLockType.none,
+    
+    // Create default settings if none exist
+    final defaultSettings = Settings(
+      themeMode: 'system',
       notifyAheadHours: 24,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      lockEnabled: false,
+      lockType: 'none',
+      monthlyIncome: null,
     );
     
-    return _cachedSettings!;
+    await _settingsBox.put(_defaultSettingsKey, defaultSettings);
+    return defaultSettings;
   }
 
+  // Update settings
   Future<void> updateSettings(Settings settings) async {
-    settings.updatedAt = DateTime.now();
-    _cachedSettings = settings;
+    await _settingsBox.put(_defaultSettingsKey, settings);
   }
 
-  Future<void> updateThemeMode(AppThemeMode themeMode) async {
+  // Update theme mode
+  Future<void> updateThemeMode(String themeMode) async {
     final settings = await getSettings();
-    settings.themeMode = themeMode;
-    await updateSettings(settings);
+    final updatedSettings = settings.copyWith(themeMode: themeMode);
+    await updateSettings(updatedSettings);
   }
 
-  Future<void> updateLockEnabled(bool enabled) async {
+  // Update notification settings
+  Future<void> updateNotificationSettings(int notifyAheadHours) async {
     final settings = await getSettings();
-    settings.lockEnabled = enabled;
-    if (!enabled) {
-      settings.lockType = AppLockType.none;
-    }
-    await updateSettings(settings);
+    final updatedSettings = settings.copyWith(notifyAheadHours: notifyAheadHours);
+    await updateSettings(updatedSettings);
   }
 
-  Future<void> updateLockType(AppLockType lockType) async {
+  // Update lock settings
+  Future<void> updateLockSettings(bool lockEnabled, String lockType) async {
     final settings = await getSettings();
-    settings.lockType = lockType;
-    settings.lockEnabled = lockType != AppLockType.none;
-    await updateSettings(settings);
+    final updatedSettings = settings.copyWith(
+      lockEnabled: lockEnabled,
+      lockType: lockType,
+    );
+    await updateSettings(updatedSettings);
   }
 
-  Future<void> updateNotifyAheadHours(int hours) async {
+  // Update monthly income
+  Future<void> updateMonthlyIncome(double? monthlyIncome) async {
     final settings = await getSettings();
-    settings.notifyAheadHours = hours;
-    await updateSettings(settings);
+    final updatedSettings = settings.copyWith(monthlyIncome: monthlyIncome);
+    await updateSettings(updatedSettings);
   }
 
-  // Secure storage for PIN and biometric settings
-  Future<void> setPin(String pin) async {
-    await _secureStorage.write(key: _pinKey, value: pin);
+  // Get theme mode
+  Future<String> getThemeMode() async {
+    final settings = await getSettings();
+    return settings.themeMode;
   }
 
-  Future<String?> getPin() async {
-    return await _secureStorage.read(key: _pinKey);
+  // Get notification hours
+  Future<int> getNotifyAheadHours() async {
+    final settings = await getSettings();
+    return settings.notifyAheadHours;
   }
 
-  Future<void> removePin() async {
-    await _secureStorage.delete(key: _pinKey);
+  // Check if lock is enabled
+  Future<bool> isLockEnabled() async {
+    final settings = await getSettings();
+    return settings.lockEnabled;
   }
 
-  Future<void> setBiometricEnabled(bool enabled) async {
-    await _secureStorage.write(key: _biometricKey, value: enabled.toString());
+  // Get lock type
+  Future<String> getLockType() async {
+    final settings = await getSettings();
+    return settings.lockType;
   }
 
-  Future<bool> isBiometricEnabled() async {
-    final value = await _secureStorage.read(key: _biometricKey);
-    return value == 'true';
+  // Get monthly income
+  Future<double?> getMonthlyIncome() async {
+    final settings = await getSettings();
+    return settings.monthlyIncome;
   }
 
-  // Validation
-  Future<bool> validatePin(String pin) async {
-    final storedPin = await getPin();
-    return storedPin == pin;
-  }
-
-  // Reset all settings
-  Future<void> resetSettings() async {
-    await _secureStorage.deleteAll();
-    _cachedSettings = null;
-    
-    // Create default settings
+  // Reset settings to default
+  Future<void> resetToDefault() async {
     final defaultSettings = Settings(
-      id: 1,
-      themeMode: AppThemeMode.system,
-      lockEnabled: false,
-      lockType: AppLockType.none,
+      themeMode: 'system',
       notifyAheadHours: 24,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      lockEnabled: false,
+      lockType: 'none',
+      monthlyIncome: null,
     );
     
     await updateSettings(defaultSettings);
   }
 
-  // JSON serialization for backup/restore
-  Map<String, dynamic> toJson() {
+  // Export settings as Map
+  Future<Map<String, dynamic>> exportSettings() async {
+    final settings = await getSettings();
     return {
-      'settings': _cachedSettings?.toJson(),
-      'pin': null, // PIN is stored securely, not in backup
-      'biometricEnabled': null, // Biometric setting is stored securely, not in backup
+      'themeMode': settings.themeMode,
+      'notifyAheadHours': settings.notifyAheadHours,
+      'lockEnabled': settings.lockEnabled,
+      'lockType': settings.lockType,
+      'monthlyIncome': settings.monthlyIncome,
+      'exportedAt': DateTime.now().toIso8601String(),
     };
   }
 
-  Future<void> fromJson(Map<String, dynamic> json) async {
-    if (json['settings'] != null) {
-      final settings = Settings.fromJson(json['settings']);
-      await updateSettings(settings);
+  // Import settings from Map
+  Future<void> importSettings(Map<String, dynamic> data) async {
+    final settings = Settings(
+      themeMode: data['themeMode'] ?? 'system',
+      notifyAheadHours: data['notifyAheadHours'] ?? 24,
+      lockEnabled: data['lockEnabled'] ?? false,
+      lockType: data['lockType'] ?? 'none',
+      monthlyIncome: data['monthlyIncome'],
+    );
+    
+    await updateSettings(settings);
+  }
+
+  // Get settings summary
+  Future<Map<String, dynamic>> getSettingsSummary() async {
+    final settings = await getSettings();
+    return {
+      'themeMode': settings.themeMode,
+      'notificationsEnabled': settings.notifyAheadHours > 0,
+      'notifyAheadHours': settings.notifyAheadHours,
+      'lockEnabled': settings.lockEnabled,
+      'lockType': settings.lockType,
+      'hasMonthlyIncome': settings.monthlyIncome != null,
+      'monthlyIncome': settings.monthlyIncome,
+    };
+  }
+
+  // Validate settings
+  Future<bool> validateSettings(Settings settings) async {
+    // Validate theme mode
+    if (!['system', 'light', 'dark'].contains(settings.themeMode)) {
+      return false;
     }
+    
+    // Validate notification hours
+    if (settings.notifyAheadHours < 0 || settings.notifyAheadHours > 168) {
+      return false;
+    }
+    
+    // Validate lock type
+    if (!['none', 'pin', 'biometric'].contains(settings.lockType)) {
+      return false;
+    }
+    
+    // Validate monthly income
+    if (settings.monthlyIncome != null && settings.monthlyIncome! < 0) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  // Check if settings need migration
+  Future<bool> needsMigration() async {
+    final settings = await getSettings();
+    
+    // Check if settings are using old format or missing fields
+    return settings.themeMode.isEmpty || 
+           settings.lockType.isEmpty ||
+           settings.notifyAheadHours <= 0;
+  }
+
+  // Migrate settings to new format
+  Future<void> migrateSettings() async {
+    final settings = await getSettings();
+    
+    // Apply migration rules
+    final migratedSettings = Settings(
+      themeMode: settings.themeMode.isEmpty ? 'system' : settings.themeMode,
+      notifyAheadHours: settings.notifyAheadHours <= 0 ? 24 : settings.notifyAheadHours,
+      lockEnabled: settings.lockEnabled,
+      lockType: settings.lockType.isEmpty ? 'none' : settings.lockType,
+      monthlyIncome: settings.monthlyIncome,
+    );
+    
+    await updateSettings(migratedSettings);
   }
 }

@@ -36,41 +36,10 @@ class FinEnotApp extends StatelessWidget {
           builder: (context, snapshot) {
             if (snapshot.hasData) {
               final settings = snapshot.data!;
-              return GetMaterialApp(
-                title: 'FinEnot',
-                theme: AppTheme.lightTheme,
-                darkTheme: AppTheme.darkTheme,
-                themeMode: _getThemeMode(settings.themeMode),
-                initialRoute: AppRoutes.splash,
-                getPages: AppRoutes.routes,
-                initialBinding: BindingsBuilder(() {
-                  // Initialize controllers
-                  Get.lazyPut(() => DashboardController());
-                  Get.lazyPut(() => CreditsController());
-                  Get.lazyPut(() => PaymentsController());
-                  Get.lazyPut(() => SettingsController());
-                  Get.lazyPut(() => LockController());
-                }),
-              );
+              // Update theme mode
+              Get.changeThemeMode(_getThemeMode(settings.themeMode));
             }
-            
-            // Default app while loading settings
-            return GetMaterialApp(
-              title: 'FinEnot',
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
-              themeMode: ThemeMode.system,
-              initialRoute: AppRoutes.splash,
-              getPages: AppRoutes.routes,
-              initialBinding: BindingsBuilder(() {
-                // Initialize controllers
-                Get.lazyPut(() => DashboardController());
-                Get.lazyPut(() => CreditsController());
-                Get.lazyPut(() => PaymentsController());
-                Get.lazyPut(() => SettingsController());
-                Get.lazyPut(() => LockController());
-              }),
-            );
+            return child!;
           },
         );
       },

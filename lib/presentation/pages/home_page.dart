@@ -4,7 +4,6 @@ import 'package:fl_chart/fl_chart.dart';
 import '../controllers/dashboard_controller.dart';
 import '../controllers/credits_controller.dart';
 import '../controllers/payments_controller.dart';
-import '../widgets/raccoon_mascot.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../data/models/payment.dart';
@@ -90,9 +89,21 @@ class HomePage extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
-          children: [
-            const RaccoonMascot(),
-            const SizedBox(width: 16),
+                      children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet,
+                  size: 30,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,61 +1,51 @@
-// Simple Payment model without Isar for testing
-class Payment {
-  int id;
+import 'package:hive/hive.dart';
+
+part 'payment.g.dart';
+
+@HiveType(typeId: 1)
+class Payment extends HiveObject {
+  @HiveField(0)
+  int creditId; // Reference to credit
+
+  @HiveField(1)
   double amount;
+
+  @HiveField(2)
   DateTime dueDate;
+
+  @HiveField(3)
   DateTime? paidDate;
-  PaymentStatus status;
-  PaymentType type;
+
+  @HiveField(4)
+  String status; // pending, paid, missed, partial
+
+  @HiveField(5)
   DateTime createdAt;
-  int creditId;
 
   Payment({
-    required this.id,
+    required this.creditId,
     required this.amount,
     required this.dueDate,
     this.paidDate,
     required this.status,
-    required this.type,
     required this.createdAt,
-    required this.creditId,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'amount': amount,
-      'dueDate': dueDate.toIso8601String(),
-      'paidDate': paidDate?.toIso8601String(),
-      'status': status.name,
-      'type': type.name,
-      'createdAt': createdAt.toIso8601String(),
-      'creditId': creditId,
-    };
-  }
-
-  factory Payment.fromJson(Map<String, dynamic> json) {
+  Payment copyWith({
+    int? creditId,
+    double? amount,
+    DateTime? dueDate,
+    DateTime? paidDate,
+    String? status,
+    DateTime? createdAt,
+  }) {
     return Payment(
-      id: json['id'],
-      amount: json['amount'].toDouble(),
-      dueDate: DateTime.parse(json['dueDate']),
-      paidDate: json['paidDate'] != null ? DateTime.parse(json['paidDate']) : null,
-      status: PaymentStatus.values.firstWhere((e) => e.name == json['status']),
-      type: PaymentType.values.firstWhere((e) => e.name == json['type']),
-      createdAt: DateTime.parse(json['createdAt']),
-      creditId: json['creditId'],
+      creditId: creditId ?? this.creditId,
+      amount: amount ?? this.amount,
+      dueDate: dueDate ?? this.dueDate,
+      paidDate: paidDate ?? this.paidDate,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
-}
-
-enum PaymentStatus {
-  pending,
-  paid,
-  partial,
-  overdue,
-}
-
-enum PaymentType {
-  regular,
-  partial,
-  extra,
 }
