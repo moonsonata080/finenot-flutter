@@ -64,21 +64,15 @@ class NotificationService {
   static Future<void> schedulePaymentNotification(Payment payment) async {
     if (!_isInitialized) await initialize();
 
-    final settings = await SettingsRepository().getSettings();
-    final notifyTime = payment.dueDate.subtract(Duration(hours: settings.notifyAheadHours));
-
-    // Don't schedule if notification time is in the past
-    if (notifyTime.isBefore(DateTime.now())) return;
-
     final notificationId = payment.id.toInt();
+    final notifyTime = payment.dueDate.subtract(const Duration(hours: 24));
 
     const androidDetails = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDescription,
+      'payment_channel',
+      'Payment Notifications',
+      channelDescription: 'Notifications for upcoming payments',
       importance: Importance.high,
       priority: Priority.high,
-      category: AndroidNotificationCategory.reminder,
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -92,13 +86,10 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    final credit = payment.credit.value;
-    final creditName = credit?.name ?? 'Unknown Credit';
-
     await _notifications.zonedSchedule(
       notificationId,
       'Payment Reminder',
-      'Payment of ${payment.amount.toStringAsFixed(2)} for $creditName is due soon',
+      'Payment of ${payment.amount.toStringAsFixed(2)} is due soon',
       tz.TZDateTime.from(notifyTime, tz.local),
       details,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -130,17 +121,8 @@ class NotificationService {
     // Cancel existing notifications
     await cancelAllNotifications();
 
-    // Get all pending payments
-    final isar = IsarProvider.instance;
-    final pendingPayments = await isar.payments
-        .filter()
-        .statusEqualTo(PaymentStatus.pending)
-        .findAll();
-
-    // Schedule notifications for each pending payment
-    for (final payment in pendingPayments) {
-      await schedulePaymentNotification(payment);
-    }
+    // For now, we'll skip rescheduling since we don't have Isar
+    // This can be implemented later when we restore the database
   }
 
   // Update notifications when payment status changes

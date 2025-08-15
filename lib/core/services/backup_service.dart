@@ -120,7 +120,7 @@ class BackupService {
   }
 
   // Validate backup file
-  static Future<bool> validateBackupFile(String jsonData) {
+  static Future<bool> validateBackupFile(String jsonData) async {
     try {
       final data = jsonDecode(jsonData) as Map<String, dynamic>;
       
